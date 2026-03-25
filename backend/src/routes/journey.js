@@ -4,6 +4,7 @@
  *
  * Endpoints:
  *   GET /api/journey/search?from=<stopId>&to=<stopId>&lookahead=120
+ *   GET /api/journey/metro?from=<stopId>&to=<stopId>&lookahead=90
  *   GET /api/journey/trip/:tripId?fromStop=<stopId>&toStop=<stopId>
  *
  * Logica search:
@@ -382,6 +383,428 @@ router.get('/trip/:tripId', async (req, res) => {
   } catch (err) {
     console.error('[journey/trip/:tripId]', err);
     res.status(500).json({ error: 'Errore nel recupero della corsa' });
+  }
+});
+
+/**
+ * GET /api/journey/metro
+ * Pianifica un viaggio in metropolitana tra due stazioni.
+ *
+ * Supporta:
+ *   - Percorsi diretti (stessa linea, stessa corsa)
+ *   - Percorsi con un cambio (stazione di interscambio tra linee diverse)
+ *
+ * Per ogni opzione restituisce:
+ *   - waitMinutes:     attesa prima della partenza del primo treno
+ *   - travelMinutes:   tempo di percorrenza puro (solo sul treno)
+ *   - transferMinutes: tempo cambio alla stazione di interscambio (se applicabile)
+ *   - totalMinutes:    totale complessivo
+ *   - stops:           elenco fermate attraversate con orari e stato
+ *   - vehicle:         posizione veicolo in tempo reale (se disponibile)
+ *   - realtimeDelay:   ritardo in minuti (null = orario schedulato)
+ *
+ * Query params:
+ *   from      - stop_id stazione di partenza (obbligatorio)
+ *   to        - stop_id stazione di arrivo (obbligatorio)
+ *   lookahead - finestra temporale in minuti (default 90, max 180)
+ */
+router.get('/metro', async (req, res) => {
+  const { from: fromStop, to: toStop } = req.query;
+  const lookahead = Math.min(parseInt(req.query.lookahead) || 90, 180);
+
+  if (!fromStop || !toStop) {
+    return res.status(400).json({ error: 'Parametri from e to obbligatori' });
+  }
+  if (fromStop === toStop) {
+    return res.status(400).json({ error: 'Le stazioni di partenza e arrivo devono essere diverse' });
+  }
+
+  const cacheKey = `journey:metro:${fromStop}:${toStop}:${Math.floor(nowInSeconds() / 60)}`;
+
+  try {
+    const result = await withCache('journey', cacheKey, async () => {
+      const db = getDb();
+
+      // Verifica che le stazioni esistano e siano servite dalla metro (route_type = 1)
+      const fromStopRow = db.prepare(`
+        SELECT DISTINCT s.stop_id, s.stop_name, s.stop_code
+        FROM stops s
+        JOIN stop_times st ON st.stop_id = s.stop_id
+        JOIN trips t       ON t.trip_id  = st.trip_id
+        JOIN routes r      ON r.route_id = t.route_id
+        WHERE s.stop_id = ? AND r.route_type = 1
+        LIMIT 1
+      `).get(fromStop);
+
+      const toStopRow = db.prepare(`
+        SELECT DISTINCT s.stop_id, s.stop_name, s.stop_code
+        FROM stops s
+        JOIN stop_times st ON st.stop_id = s.stop_id
+        JOIN trips t       ON t.trip_id  = st.trip_id
+        JOIN routes r      ON r.route_id = t.route_id
+        WHERE s.stop_id = ? AND r.route_type = 1
+        LIMIT 1
+      `).get(toStop);
+
+      if (!fromStopRow) return { _error: 'Stazione di partenza non trovata o non servita dalla metropolitana', _status: 404 };
+      if (!toStopRow)   return { _error: 'Stazione di arrivo non trovata o non servita dalla metropolitana',   _status: 404 };
+
+      const activeServiceIds = getActiveServiceIds(db);
+      if (!activeServiceIds.length) {
+        return {
+          fromStop: { stopId: fromStopRow.stop_id, stopName: fromStopRow.stop_name, stopCode: fromStopRow.stop_code },
+          toStop:   { stopId: toStopRow.stop_id,   stopName: toStopRow.stop_name,   stopCode: toStopRow.stop_code },
+          journeys: [],
+          realtimeAvailable: false,
+          message: 'Nessun servizio attivo per oggi',
+          generatedAt: new Date().toISOString(),
+        };
+      }
+
+      const nowSec = nowInSeconds();
+      const maxSec = nowSec + lookahead * 60;
+      const placeholders = activeServiceIds.map(() => '?').join(',');
+
+      // ── Query corse dirette (stessa linea, stesso trip_id) ──────────────────
+      const directRows = db.prepare(`
+        SELECT
+          t.trip_id,
+          t.route_id,
+          t.trip_headsign,
+          t.direction_id,
+          r.route_short_name,
+          r.route_long_name,
+          r.route_color,
+          r.route_text_color,
+          st_from.stop_sequence  AS from_seq,
+          st_from.departure_time AS from_departure,
+          (
+            CAST(SUBSTR(st_from.departure_time, 1, 2) AS INTEGER) * 3600 +
+            CAST(SUBSTR(st_from.departure_time, 4, 2) AS INTEGER) * 60 +
+            CAST(SUBSTR(st_from.departure_time, 7, 2) AS INTEGER)
+          ) AS from_dep_sec,
+          st_to.stop_sequence AS to_seq,
+          st_to.arrival_time  AS to_arrival,
+          (
+            CAST(SUBSTR(st_to.arrival_time, 1, 2) AS INTEGER) * 3600 +
+            CAST(SUBSTR(st_to.arrival_time, 4, 2) AS INTEGER) * 60 +
+            CAST(SUBSTR(st_to.arrival_time, 7, 2) AS INTEGER)
+          ) AS to_arr_sec
+        FROM trips t
+        JOIN routes r      ON r.route_id = t.route_id AND r.route_type = 1
+        JOIN stop_times st_from ON st_from.trip_id = t.trip_id AND st_from.stop_id = ?
+        JOIN stop_times st_to   ON st_to.trip_id   = t.trip_id AND st_to.stop_id   = ?
+          AND st_to.stop_sequence > st_from.stop_sequence
+        WHERE t.service_id IN (${placeholders})
+          AND (
+            CAST(SUBSTR(st_from.departure_time, 1, 2) AS INTEGER) * 3600 +
+            CAST(SUBSTR(st_from.departure_time, 4, 2) AS INTEGER) * 60 +
+            CAST(SUBSTR(st_from.departure_time, 7, 2) AS INTEGER)
+          ) BETWEEN ? AND ?
+        ORDER BY from_dep_sec
+        LIMIT 8
+      `).all(fromStop, toStop, ...activeServiceIds, nowSec, maxSec);
+
+      // Statement riutilizzabile per fermate di un segmento
+      const segStopsStmt = db.prepare(`
+        SELECT
+          s.stop_id, s.stop_name, s.stop_code,
+          st.arrival_time, st.departure_time,
+          st.stop_sequence,
+          (
+            CAST(SUBSTR(st.departure_time, 1, 2) AS INTEGER) * 3600 +
+            CAST(SUBSTR(st.departure_time, 4, 2) AS INTEGER) * 60 +
+            CAST(SUBSTR(st.departure_time, 7, 2) AS INTEGER)
+          ) AS dep_sec
+        FROM stop_times st
+        JOIN stops s ON s.stop_id = st.stop_id
+        WHERE st.trip_id = ?
+          AND st.stop_sequence >= ?
+          AND st.stop_sequence <= ?
+        ORDER BY st.stop_sequence
+      `);
+
+      // GTFS-RT delays per tutte le corse dirette
+      const allTripIds = directRows.map(r => r.trip_id);
+      const realtimeDelays = isRealtimeEnabled()
+        ? await getRealtimeDelays(allTripIds)
+        : {};
+
+      // ── Costruisce journey diretti ───────────────────────────────────────────
+      const directJourneys = await Promise.all(directRows.map(async row => {
+        const rtInfo       = realtimeDelays[row.trip_id] || null;
+        const delaySec     = rtInfo?.delay ?? 0;
+        const effDepSec    = row.from_dep_sec + delaySec;
+        const effArrSec    = row.to_arr_sec   + delaySec;
+        const waitMinutes  = Math.max(0, Math.round((effDepSec - nowSec) / 60));
+        const travelMinutes = Math.round((effArrSec - effDepSec) / 60);
+        const totalMinutes  = waitMinutes + travelMinutes;
+
+        // Posizione veicolo in tempo reale
+        const vehicleData = isRealtimeEnabled()
+          ? await getVehiclePosition(row.trip_id)
+          : { available: false };
+
+        // Stima minuti all'arrivo del treno alla stazione di partenza
+        // (solo se il treno è ancora prima della stazione di partenza)
+        let vehicleArrivalMinutes = null;
+        if (vehicleData?.available && vehicleData.currentStopId) {
+          const vpSeqRow = db.prepare(
+            'SELECT stop_sequence FROM stop_times WHERE trip_id = ? AND stop_id = ? LIMIT 1'
+          ).get(row.trip_id, vehicleData.currentStopId);
+          if (vpSeqRow && vpSeqRow.stop_sequence < row.from_seq && travelMinutes > 0) {
+            const stopsToFrom = row.from_seq - vpSeqRow.stop_sequence;
+            const totalSegs   = row.to_seq - row.from_seq || 1;
+            vehicleArrivalMinutes = Math.round(stopsToFrom * (travelMinutes / totalSegs));
+          }
+        }
+
+        // Fermate del segmento (da from_seq a to_seq incluse)
+        const segStops = segStopsStmt.all(row.trip_id, row.from_seq, row.to_seq);
+        const stops = segStops.map(s => ({
+          stopId:        s.stop_id,
+          stopCode:      s.stop_code,
+          stopName:      s.stop_name,
+          arrivalTime:   s.arrival_time.substring(0, 5),
+          departureTime: s.departure_time.substring(0, 5),
+          stopSequence:  s.stop_sequence,
+          isFrom:        s.stop_id === fromStop,
+          isTo:          s.stop_id === toStop,
+          isTransfer:    false,
+        }));
+
+        return {
+          type:               'direct',
+          tripId:             row.trip_id,
+          routeId:            row.route_id,
+          routeShortName:     row.route_short_name,
+          routeLongName:      row.route_long_name,
+          routeColor:         row.route_color      ? `#${row.route_color}`      : '#E84B24',
+          routeTextColor:     row.route_text_color ? `#${row.route_text_color}` : '#FFFFFF',
+          headsign:           row.trip_headsign,
+          directionId:        row.direction_id,
+          departureTime:      secondsToHHMM(effDepSec),
+          arrivalTime:        secondsToHHMM(effArrSec),
+          scheduledDeparture: row.from_departure.substring(0, 5),
+          scheduledArrival:   row.to_arrival.substring(0, 5),
+          waitMinutes,
+          travelMinutes,
+          transferMinutes:    0,
+          totalMinutes,
+          intermediateStops:  stops.length - 2,
+          stops,
+          realtimeDelay:      rtInfo ? Math.round(rtInfo.delay / 60) : null,
+          dataType:           rtInfo ? 'realtime' : 'scheduled',
+          vehicle:            vehicleData || { available: false },
+          vehicleArrivalMinutes,
+          transfer:           null,
+        };
+      }));
+
+      // ── Percorsi con cambio (solo se ci sono meno di 3 diretti) ─────────────
+      let transferJourneys = [];
+
+      if (directJourneys.length < 3) {
+        // Stazioni che fungono da interscambio tra più linee metro
+        const transferStations = db.prepare(`
+          SELECT s.stop_id, s.stop_name, s.stop_code,
+                 COUNT(DISTINCT t.route_id) AS line_count
+          FROM stops s
+          JOIN stop_times st ON st.stop_id = s.stop_id
+          JOIN trips t       ON t.trip_id  = st.trip_id
+          JOIN routes r      ON r.route_id = t.route_id
+          WHERE r.route_type = 1
+            AND s.stop_id != ?
+            AND s.stop_id != ?
+          GROUP BY s.stop_id
+          HAVING line_count > 1
+          LIMIT 10
+        `).all(fromStop, toStop);
+
+        for (const hub of transferStations) {
+          // Leg 1: fromStop → hub
+          const leg1Rows = db.prepare(`
+            SELECT
+              t.trip_id, t.route_id, t.trip_headsign,
+              r.route_short_name, r.route_color, r.route_text_color,
+              st_from.stop_sequence AS from_seq,
+              st_from.departure_time AS from_departure,
+              (
+                CAST(SUBSTR(st_from.departure_time, 1, 2) AS INTEGER) * 3600 +
+                CAST(SUBSTR(st_from.departure_time, 4, 2) AS INTEGER) * 60 +
+                CAST(SUBSTR(st_from.departure_time, 7, 2) AS INTEGER)
+              ) AS from_dep_sec,
+              st_to.stop_sequence AS to_seq,
+              st_to.arrival_time  AS hub_arrival,
+              (
+                CAST(SUBSTR(st_to.arrival_time, 1, 2) AS INTEGER) * 3600 +
+                CAST(SUBSTR(st_to.arrival_time, 4, 2) AS INTEGER) * 60 +
+                CAST(SUBSTR(st_to.arrival_time, 7, 2) AS INTEGER)
+              ) AS hub_arr_sec
+            FROM trips t
+            JOIN routes r      ON r.route_id = t.route_id AND r.route_type = 1
+            JOIN stop_times st_from ON st_from.trip_id = t.trip_id AND st_from.stop_id = ?
+            JOIN stop_times st_to   ON st_to.trip_id   = t.trip_id AND st_to.stop_id   = ?
+              AND st_to.stop_sequence > st_from.stop_sequence
+            WHERE t.service_id IN (${placeholders})
+              AND from_dep_sec BETWEEN ? AND ?
+            ORDER BY from_dep_sec
+            LIMIT 3
+          `).all(fromStop, hub.stop_id, ...activeServiceIds, nowSec, maxSec);
+
+          if (!leg1Rows.length) continue;
+
+          for (const leg1 of leg1Rows) {
+            // 3 minuti di tempo cambio stimato
+            const transferBuffer = 3 * 60;
+
+            // Leg 2: hub → toStop, su linea diversa, dopo arrivo leg1 + buffer
+            const leg2Rows = db.prepare(`
+              SELECT
+                t.trip_id, t.route_id, t.trip_headsign,
+                r.route_short_name, r.route_color, r.route_text_color,
+                st_from.stop_sequence AS from_seq,
+                st_from.departure_time AS hub_departure,
+                (
+                  CAST(SUBSTR(st_from.departure_time, 1, 2) AS INTEGER) * 3600 +
+                  CAST(SUBSTR(st_from.departure_time, 4, 2) AS INTEGER) * 60 +
+                  CAST(SUBSTR(st_from.departure_time, 7, 2) AS INTEGER)
+                ) AS hub_dep_sec,
+                st_to.stop_sequence AS to_seq,
+                st_to.arrival_time  AS to_arrival,
+                (
+                  CAST(SUBSTR(st_to.arrival_time, 1, 2) AS INTEGER) * 3600 +
+                  CAST(SUBSTR(st_to.arrival_time, 4, 2) AS INTEGER) * 60 +
+                  CAST(SUBSTR(st_to.arrival_time, 7, 2) AS INTEGER)
+                ) AS to_arr_sec
+              FROM trips t
+              JOIN routes r      ON r.route_id = t.route_id AND r.route_type = 1
+              JOIN stop_times st_from ON st_from.trip_id = t.trip_id AND st_from.stop_id = ?
+              JOIN stop_times st_to   ON st_to.trip_id   = t.trip_id AND st_to.stop_id   = ?
+                AND st_to.stop_sequence > st_from.stop_sequence
+              WHERE t.service_id IN (${placeholders})
+                AND hub_dep_sec >= ?
+                AND t.route_id != ?
+              ORDER BY hub_dep_sec
+              LIMIT 2
+            `).all(hub.stop_id, toStop, ...activeServiceIds, leg1.hub_arr_sec + transferBuffer, leg1.route_id);
+
+            if (!leg2Rows.length) continue;
+            const leg2 = leg2Rows[0];
+
+            const rtLeg1     = realtimeDelays[leg1.trip_id] || null;
+            const rtLeg2     = realtimeDelays[leg2.trip_id] || null;
+            const delay1Sec  = rtLeg1?.delay ?? 0;
+            const delay2Sec  = rtLeg2?.delay ?? 0;
+
+            const effDep1  = leg1.from_dep_sec + delay1Sec;
+            const effArr1  = leg1.hub_arr_sec  + delay1Sec;
+            const effDep2  = leg2.hub_dep_sec  + delay2Sec;
+            const effArr2  = leg2.to_arr_sec   + delay2Sec;
+
+            const waitMinutes     = Math.max(0, Math.round((effDep1 - nowSec) / 60));
+            const travel1Minutes  = Math.round((effArr1 - effDep1) / 60);
+            const transferMinutes = Math.max(3, Math.round((effDep2 - effArr1) / 60));
+            const travel2Minutes  = Math.round((effArr2 - effDep2) / 60);
+            const travelMinutes   = travel1Minutes + travel2Minutes;
+            const totalMinutes    = waitMinutes + travelMinutes + transferMinutes;
+
+            const seg1Stops = segStopsStmt.all(leg1.trip_id, leg1.from_seq, leg1.to_seq)
+              .map(s => ({
+                stopId: s.stop_id, stopCode: s.stop_code, stopName: s.stop_name,
+                arrivalTime: s.arrival_time.substring(0, 5),
+                departureTime: s.departure_time.substring(0, 5),
+                stopSequence: s.stop_sequence,
+                isFrom: s.stop_id === fromStop, isTo: false,
+                isTransfer: s.stop_id === hub.stop_id,
+              }));
+
+            const seg2Stops = segStopsStmt.all(leg2.trip_id, leg2.from_seq, leg2.to_seq)
+              .map(s => ({
+                stopId: s.stop_id, stopCode: s.stop_code, stopName: s.stop_name,
+                arrivalTime: s.arrival_time.substring(0, 5),
+                departureTime: s.departure_time.substring(0, 5),
+                stopSequence: s.stop_sequence,
+                isFrom: false, isTo: s.stop_id === toStop,
+                isTransfer: s.stop_id === hub.stop_id,
+              }));
+
+            transferJourneys.push({
+              type:            'transfer',
+              departureTime:   secondsToHHMM(effDep1),
+              arrivalTime:     secondsToHHMM(effArr2),
+              waitMinutes,
+              travelMinutes,
+              transferMinutes,
+              totalMinutes,
+              realtimeAvailable: isRealtimeEnabled(),
+              transfer: {
+                stopId:          hub.stop_id,
+                stopName:        hub.stop_name,
+                stopCode:        hub.stop_code,
+                transferMinutes,
+              },
+              legs: [
+                {
+                  tripId:         leg1.trip_id,
+                  routeId:        leg1.route_id,
+                  routeShortName: leg1.route_short_name,
+                  routeColor:     leg1.route_color      ? `#${leg1.route_color}`      : '#E84B24',
+                  routeTextColor: leg1.route_text_color ? `#${leg1.route_text_color}` : '#FFFFFF',
+                  headsign:       leg1.trip_headsign,
+                  departureTime:  secondsToHHMM(effDep1),
+                  arrivalTime:    secondsToHHMM(effArr1),
+                  travelMinutes:  travel1Minutes,
+                  stops:          seg1Stops,
+                  realtimeDelay:  rtLeg1 ? Math.round(rtLeg1.delay / 60) : null,
+                  dataType:       rtLeg1 ? 'realtime' : 'scheduled',
+                  vehicle:        { available: false },
+                },
+                {
+                  tripId:         leg2.trip_id,
+                  routeId:        leg2.route_id,
+                  routeShortName: leg2.route_short_name,
+                  routeColor:     leg2.route_color      ? `#${leg2.route_color}`      : '#E84B24',
+                  routeTextColor: leg2.route_text_color ? `#${leg2.route_text_color}` : '#FFFFFF',
+                  headsign:       leg2.trip_headsign,
+                  departureTime:  secondsToHHMM(effDep2),
+                  arrivalTime:    secondsToHHMM(effArr2),
+                  travelMinutes:  travel2Minutes,
+                  stops:          seg2Stops,
+                  realtimeDelay:  rtLeg2 ? Math.round(rtLeg2.delay / 60) : null,
+                  dataType:       rtLeg2 ? 'realtime' : 'scheduled',
+                  vehicle:        { available: false },
+                },
+              ],
+            });
+          }
+
+          transferJourneys.sort((a, b) => a.totalMinutes - b.totalMinutes);
+          transferJourneys = transferJourneys.slice(0, 3);
+        }
+      }
+
+      const allJourneys = [...directJourneys, ...transferJourneys]
+        .sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+
+      return {
+        fromStop: { stopId: fromStopRow.stop_id, stopName: fromStopRow.stop_name, stopCode: fromStopRow.stop_code },
+        toStop:   { stopId: toStopRow.stop_id,   stopName: toStopRow.stop_name,   stopCode: toStopRow.stop_code },
+        journeys: allJourneys,
+        realtimeAvailable: isRealtimeEnabled(),
+        lookaheadMinutes:  lookahead,
+        generatedAt:       new Date().toISOString(),
+      };
+    });
+
+    if (result._status === 404) {
+      return res.status(404).json({ error: result._error });
+    }
+
+    res.json(result);
+  } catch (err) {
+    console.error('[journey/metro]', err);
+    res.status(500).json({ error: 'Errore nel calcolo del percorso metro' });
   }
 });
 
