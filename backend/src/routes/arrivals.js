@@ -166,9 +166,15 @@ router.get('/:stopId', async (req, res) => {
 
   try {
     const result = await withCache('arrivals', cacheKey, async () => {
+      const db = getDb();
+
+      // OTP usa stop_code come identificatore (gtt:STOP_CODE),
+      // il nostro DB e i nostri URL usano stop_id — traduci prima di chiamare OTP
+      const stopRecord = db.prepare('SELECT stop_code FROM stops WHERE stop_id = ?').get(stopId);
+      const otpStopCode = stopRecord?.stop_code || stopId;
 
       // ── Strategia 1: OTP GraphQL ───────────────────────────────────────────
-      const otpArrivals = await getOtpArrivals(stopId, limit, lookahead * 60);
+      const otpArrivals = await getOtpArrivals(otpStopCode, limit, lookahead * 60);
 
       if (otpArrivals !== null) {
         // OTP raggiungibile — conta quanti hanno dati RT
