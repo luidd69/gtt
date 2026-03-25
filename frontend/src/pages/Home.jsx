@@ -3,7 +3,7 @@
  * Schermata principale — accesso rapido a tutte le funzioni.
  */
 
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getServiceStatus, getGtfsInfo } from '../utils/api';
 import useFavoritesStore from '../store/favoritesStore';
@@ -98,6 +98,51 @@ function FavoriteStops() {
   );
 }
 
+function FrequentRoutes() {
+  const getTopFrequentRoutes = useFavoritesStore(s => s.getTopFrequentRoutes);
+  const navigate = useNavigate();
+  const routes = getTopFrequentRoutes().slice(0, 3);
+
+  if (!routes.length) return null;
+
+  return (
+    <section>
+      <div className="section-label">Percorsi frequenti</div>
+      <div style={{ padding: '0 var(--space-md)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {routes.map(r => (
+          <button
+            key={r.key}
+            onClick={() => navigate('/journey', { state: { fromStop: r.fromStop, toStop: r.toStop } })}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '10px 12px',
+              background: 'var(--color-bg-card)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-md)',
+              cursor: 'pointer', textAlign: 'left',
+              boxShadow: 'var(--shadow-card)',
+            }}
+            aria-label={`Pianifica percorso da ${r.fromStop.stopName} a ${r.toStop.stopName}`}
+          >
+            <span style={{ fontSize: 18, flexShrink: 0 }} aria-hidden="true">🔄</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="fw-600 truncate" style={{ fontSize: 14 }}>
+                {r.fromStop.stopName}
+              </div>
+              <div className="text-xs text-2 truncate">→ {r.toStop.stopName}</div>
+            </div>
+            <svg width="7" height="12" viewBox="0 0 7 12" fill="none"
+              stroke="var(--color-text-3)" strokeWidth="1.8" strokeLinecap="round"
+              aria-hidden="true">
+              <path d="M1 1l5 5-5 5"/>
+            </svg>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function GtfsInfo() {
   const { data } = useQuery({
     queryKey: ['gtfs-info'],
@@ -161,7 +206,10 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Preferiti */}
+        {/* Percorsi frequenti */}
+        <FrequentRoutes />
+
+        {/* Fermate preferite */}
         <FavoriteStops />
 
         {/* Info dati */}

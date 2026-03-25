@@ -59,9 +59,11 @@ export const getHealth = () =>
 
 // ─── Journey ──────────────────────────────────────────────────────────────────
 
-export const searchJourney = (fromStop, toStop, lookahead = 120) =>
-  client.get('/journey/search', { params: { from: fromStop, to: toStop, lookahead } })
-    .then(r => r.data);
+export const searchJourney = (fromStop, toStop, { lookahead = 120, arriveBy } = {}) => {
+  const params = { from: fromStop, to: toStop, lookahead };
+  if (arriveBy) params.arriveBy = arriveBy;
+  return client.get('/journey/search', { params }).then(r => r.data);
+};
 
 export const getTripDetail = (tripId, fromStop, toStop) =>
   client.get(`/journey/trip/${tripId}`, { params: { fromStop, toStop } })

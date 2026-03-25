@@ -6,10 +6,63 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { getLine } from '../utils/api';
+import { getLine, getServiceStatus } from '../utils/api';
 import useFavoritesStore from '../store/favoritesStore';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorState from '../components/ErrorState';
+
+// ─── Avvisi di servizio per la linea ────────────────────────────────────────
+
+function LineAlerts({ routeId, routeShortName }) {
+  const { data } = useQuery({
+    queryKey: ['service-status'],
+    queryFn: getServiceStatus,
+    staleTime: 60_000,
+    retry: 1,
+  });
+
+  if (!data?.realtimeEnabled || !data?.alerts?.length) return null;
+
+  // Filtra avvisi che coinvolgono questa linea (per route_id o route_short_name)
+  const relevant = data.alerts.filter(a => {
+    if (!a.affectedRoutes?.length) return true; // avviso globale
+    return a.affectedRoutes.some(r =>
+      r.routeId === routeId || r.routeShortName === routeShortName
+    );
+  });
+
+  if (!relevant.length) return null;
+
+  return (
+    <div style={{ padding: '0 var(--space-md)', marginBottom: 'var(--space-md)' }}>
+      {relevant.map((alert, idx) => (
+        <div key={idx} className="notice notice-warning" style={{ marginBottom: 6 }}>
+          <span aria-hidden="true">⚠️</span>
+          <div>
+            {alert.header && (
+              <div style={{ fontWeight: 600, fontSize: 14 }}>{alert.header}</div>
+            )}
+            {alert.description && (
+              <div style={{ fontSize: 13, marginTop: 2, color: 'inherit' }}>
+                {alert.description}
+              </div>
+            )}
+            {alert.activePeriods?.[0] && (
+              <div style={{ fontSize: 11, marginTop: 4, opacity: 0.8 }}>
+                {alert.activePeriods[0].start && (
+                  <>Dal {new Date(alert.activePeriods[0].start * 1000).toLocaleDateString('it-IT')}</>
+                )}
+                {alert.activePeriods[0].end && (
+                  <> al {new Date(alert.activePeriods[0].end * 1000).toLocaleDateString('it-IT')}</>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function LineDetail() {
   const { routeId } = useParams();
@@ -85,6 +138,11 @@ export default function LineDetail() {
       <div style={{ paddingTop: 'var(--space-sm)' }}>
         {isLoading && <LoadingSpinner />}
         {isError && <ErrorState onRetry={refetch} message="Impossibile caricare la linea" />}
+
+        {/* Avvisi di servizio per questa linea */}
+        {route && (
+          <LineAlerts routeId={routeId} routeShortName={route.route_short_name} />
+        )}
 
         {data?.directions?.map(dir => (
           <div key={dir.direction_id} style={{ marginBottom: 'var(--space-md)' }}>

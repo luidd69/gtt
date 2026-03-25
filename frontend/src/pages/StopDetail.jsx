@@ -3,7 +3,7 @@
  * Scheda fermata: info + prossimi arrivi con auto-refresh.
  */
 
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getStop } from '../utils/api';
 import { useArrivals } from '../hooks/useArrivals';
@@ -161,17 +161,26 @@ export default function StopDetail() {
           <FavoriteButton stop={stop} />
         </div>
 
-        {/* Chips linee */}
+        {/* Chips linee cliccabili */}
         {routes.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}
+            role="list" aria-label="Linee che servono questa fermata">
             {routes.map(r => {
               const style = r.route_color
                 ? { backgroundColor: `#${r.route_color}`, color: r.route_text_color ? `#${r.route_text_color}` : '#fff' }
                 : null;
               return (
-                <span key={r.route_id} className={`route-chip ${style ? 'custom' : ''}`} style={style ?? undefined}>
-                  {r.route_short_name}
-                </span>
+                <Link
+                  key={r.route_id}
+                  to={`/lines/${r.route_id}`}
+                  role="listitem"
+                  aria-label={`Linea ${r.route_short_name}`}
+                  style={{ textDecoration: 'none' }}
+                >
+                  <span className={`route-chip ${style ? 'custom' : ''}`} style={style ?? undefined}>
+                    {r.route_short_name}
+                  </span>
+                </Link>
               );
             })}
           </div>

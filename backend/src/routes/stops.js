@@ -15,6 +15,7 @@ const MAX_SEARCH = 30;
 /**
  * GET /api/stops/search?q=<query>
  * Ricerca fermate per nome o codice.
+ * Supporta ricerca multi-parola (AND): ogni parola deve comparire nel nome.
  * Restituisce al massimo MAX_SEARCH risultati.
  */
 router.get('/search', (req, res) => {
@@ -29,31 +30,56 @@ router.get('/search', (req, res) => {
   const result = withCache('stops', cacheKey, async () => {
     const db = getDb();
 
-    // Cerca per codice fermata (match esatto) o nome (LIKE)
-    const stops = db.prepare(`
+    // Ricerca per codice esatto
+    const byCode = db.prepare(`
       SELECT
-        s.stop_id,
-        s.stop_code,
-        s.stop_name,
-        s.stop_lat,
-        s.stop_lon,
+        s.stop_id, s.stop_code, s.stop_name, s.stop_lat, s.stop_lon,
         COUNT(DISTINCT st.trip_id) AS trip_count
       FROM stops s
       LEFT JOIN stop_times st ON st.stop_id = s.stop_id
       WHERE (s.location_type = 0 OR s.location_type = '' OR s.location_type IS NULL)
-        AND (
-          s.stop_code = ?
-          OR s.stop_name LIKE ? ESCAPE '\\'
-        )
+        AND s.stop_code = ?
+      GROUP BY s.stop_id
+      LIMIT 5
+    `).all(q);
+
+    // Ricerca multi-parola: ogni parola deve comparire nel nome (AND logic)
+    const words = q.split(/\s+/).filter(w => w.length >= 2);
+    const escapedWords = words.map(w => `%${w.replace(/[%_]/g, '\\$&')}%`);
+
+    // Costruisce la WHERE clause dinamicamente
+    const wordConditions = escapedWords.map(() => `s.stop_name LIKE ? ESCAPE '\\'`).join(' AND ');
+    const fullCondition = words.length > 0
+      ? `(s.stop_name LIKE ? ESCAPE '\\' OR (${wordConditions}))`
+      : `s.stop_name LIKE ? ESCAPE '\\'`;
+
+    const fullPattern = `%${q.replace(/[%_]/g, '\\$&')}%`;
+    const params = [fullPattern, ...escapedWords];
+
+    const byName = db.prepare(`
+      SELECT
+        s.stop_id, s.stop_code, s.stop_name, s.stop_lat, s.stop_lon,
+        COUNT(DISTINCT st.trip_id) AS trip_count
+      FROM stops s
+      LEFT JOIN stop_times st ON st.stop_id = s.stop_id
+      WHERE (s.location_type = 0 OR s.location_type = '' OR s.location_type IS NULL)
+        AND ${fullCondition}
       GROUP BY s.stop_id
       ORDER BY
-        CASE WHEN s.stop_code = ? THEN 0 ELSE 1 END,
+        CASE WHEN s.stop_name LIKE ? ESCAPE '\\' THEN 0 ELSE 1 END,
         trip_count DESC,
         s.stop_name
       LIMIT ?
-    `).all(q, `%${q.replace(/[%_]/g, '\\$&')}%`, q, MAX_SEARCH);
+    `).all(...params, fullPattern, MAX_SEARCH);
 
-    return { stops };
+    // Merge: codice esatto prima, poi per nome (no duplicati)
+    const seen = new Set(byCode.map(s => s.stop_id));
+    const merged = [
+      ...byCode,
+      ...byName.filter(s => !seen.has(s.stop_id)),
+    ].slice(0, MAX_SEARCH);
+
+    return { stops: merged };
   });
 
   result.then(data => res.json(data)).catch(err => {
@@ -91,18 +117,39 @@ router.get('/nearby', (req, res) => {
     `).all(bbox.minLat, bbox.maxLat, bbox.minLon, bbox.maxLon);
 
     // Filtra esatto con Haversine e ordina per distanza
-    const nearby = candidates
+    const filtered = candidates
       .map(s => ({
         ...s,
         distanceKm: haversineDistance(lat, lon, s.stop_lat, s.stop_lon),
       }))
       .filter(s => s.distanceKm <= radiusKm)
       .sort((a, b) => a.distanceKm - b.distanceKm)
-      .slice(0, MAX_NEARBY)
-      .map(s => ({
-        ...s,
-        distanceM: Math.round(s.distanceKm * 1000),
-      }));
+      .slice(0, MAX_NEARBY);
+
+    // Arricchisce ogni fermata con le linee che la servono
+    const routesStmt = db.prepare(`
+      SELECT DISTINCT
+        r.route_id, r.route_short_name, r.route_type,
+        r.route_color, r.route_text_color
+      FROM routes r
+      JOIN trips t ON t.route_id = r.route_id
+      JOIN stop_times st ON st.trip_id = t.trip_id
+      WHERE st.stop_id = ?
+      ORDER BY r.route_type, r.route_short_name
+      LIMIT 8
+    `);
+
+    const nearby = filtered.map(s => ({
+      ...s,
+      distanceM: Math.round(s.distanceKm * 1000),
+      routes: routesStmt.all(s.stop_id).map(r => ({
+        routeId:       r.route_id,
+        routeShortName: r.route_short_name,
+        routeType:     r.route_type,
+        routeColor:    r.route_color ? `#${r.route_color}` : null,
+        routeTextColor: r.route_text_color ? `#${r.route_text_color}` : null,
+      })),
+    }));
 
     return { stops: nearby };
   });

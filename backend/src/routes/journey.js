@@ -36,6 +36,59 @@ const { getActiveServiceIds } = require('../utils/serviceCalendar');
 const LOOKAHEAD_DEFAULT = 120; // minuti
 
 /**
+ * Analizza la lista di corse trovate e identifica le soluzioni consigliate:
+ *  - soonest:      prima corsa in partenza (attesa minima)
+ *  - fastest:      corsa più breve (min durationMinutes)
+ *  - mostReliable: corsa con minor ritardo realtime (null = puntuale, preferita)
+ *
+ * Ritorna gli indici delle corse consigliate nella lista journeys.
+ */
+function buildSolutions(journeys, nowSec, arriveBy) {
+  if (!journeys.length) return {};
+
+  // Calcola attesa in minuti per ogni corsa
+  const withWait = journeys.map((j, idx) => {
+    const [hh, mm] = j.departureTime.split(':').map(Number);
+    const depSec = hh * 3600 + mm * 60;
+    const waitMin = Math.max(0, Math.round((depSec - nowSec) / 60));
+    return { idx, j, waitMin };
+  });
+
+  // Soonest: min wait (in modalità arriveBy: max arrivo = risultato in cima già)
+  const soonest = withWait.reduce((a, b) => a.waitMin <= b.waitMin ? a : b);
+
+  // Fastest: min durationMinutes
+  const fastest = journeys.reduce((best, j, idx) =>
+    j.durationMinutes < journeys[best].durationMinutes ? idx : best, 0);
+
+  // Most reliable: null delay (puntuale) prima, poi minor ritardo
+  let reliableIdx = 0;
+  for (let i = 0; i < journeys.length; i++) {
+    const j = journeys[i];
+    const best = journeys[reliableIdx];
+    const jDelay  = j.realtimeDelay ?? 0;
+    const bDelay  = best.realtimeDelay ?? 0;
+    if (jDelay < bDelay) reliableIdx = i;
+  }
+
+  const solutions = {
+    soonest:      soonest.idx,
+    fastest,
+    mostReliable: reliableIdx,
+  };
+
+  // Annota ogni corsa con i tag soluzione
+  journeys.forEach((j, idx) => {
+    j.solutionTags = [];
+    if (idx === solutions.soonest)      j.solutionTags.push('soonest');
+    if (idx === solutions.fastest)      j.solutionTags.push('fastest');
+    if (idx === solutions.mostReliable) j.solutionTags.push('reliable');
+  });
+
+  return solutions;
+}
+
+/**
  * GET /api/journey/search
  * Trova corse dirette che collegano due fermate oggi.
  *
@@ -43,9 +96,11 @@ const LOOKAHEAD_DEFAULT = 120; // minuti
  *   from       - stop_id fermata di partenza (obbligatorio)
  *   to         - stop_id fermata di arrivo (obbligatorio)
  *   lookahead  - finestra temporale in minuti (default 120, max 180)
+ *   arriveBy   - orario di arrivo desiderato HH:MM (opzionale, modalità "arriva entro")
+ *                Se fornito cerca corse che arrivano entro quell'ora (ultimi 120 min prima)
  */
 router.get('/search', async (req, res) => {
-  const { from: fromStop, to: toStop } = req.query;
+  const { from: fromStop, to: toStop, arriveBy } = req.query;
   const lookahead = Math.min(parseInt(req.query.lookahead) || LOOKAHEAD_DEFAULT, 180);
 
   if (!fromStop || !toStop) {
@@ -56,7 +111,8 @@ router.get('/search', async (req, res) => {
   }
 
   // Chiave cache con granularità al minuto — i risultati cambiano ogni minuto
-  const cacheKey = `journey:search:${fromStop}:${toStop}:${Math.floor(nowInSeconds() / 60)}`;
+  const arriveByKey = arriveBy || 'now';
+  const cacheKey = `journey:search:${fromStop}:${toStop}:${arriveByKey}:${Math.floor(nowInSeconds() / 60)}`;
 
   try {
     const result = await withCache('journey', cacheKey, async () => {
@@ -86,16 +142,37 @@ router.get('/search', async (req, res) => {
       }
 
       const nowSec = nowInSeconds();
-      const maxSec = nowSec + lookahead * 60;
 
       // Placeholder dinamici per IN clause SQLite
       const placeholders = activeServiceIds.map(() => '?').join(',');
 
+      // Calcola la finestra temporale in base alla modalità
+      let timeFilter, timeParams, orderBy;
+      if (arriveBy) {
+        // Modalità "arriva entro": cerca corse con arrivo <= arriveBy
+        const [hh, mm] = arriveBy.split(':').map(Number);
+        const arriveBy_sec = (hh * 3600) + (mm * 60);
+        const minSec = arriveBy_sec - lookahead * 60;
+        timeFilter = `(
+            CAST(SUBSTR(st_to.arrival_time, 1, 2) AS INTEGER) * 3600 +
+            CAST(SUBSTR(st_to.arrival_time, 4, 2) AS INTEGER) * 60 +
+            CAST(SUBSTR(st_to.arrival_time, 7, 2) AS INTEGER)
+          ) BETWEEN ? AND ?`;
+        timeParams = [minSec, arriveBy_sec];
+        orderBy = 'to_arr_sec DESC'; // Ultime corse utili prima, scelta più comoda in cima
+      } else {
+        // Modalità "parti adesso": cerca corse con partenza >= ora
+        const maxSec = nowSec + lookahead * 60;
+        timeFilter = `(
+            CAST(SUBSTR(st_from.departure_time, 1, 2) AS INTEGER) * 3600 +
+            CAST(SUBSTR(st_from.departure_time, 4, 2) AS INTEGER) * 60 +
+            CAST(SUBSTR(st_from.departure_time, 7, 2) AS INTEGER)
+          ) BETWEEN ? AND ?`;
+        timeParams = [nowSec, maxSec];
+        orderBy = 'from_dep_sec';
+      }
+
       // Query principale: corse che passano per entrambe le fermate nell'ordine corretto.
-      // Usa due JOIN su stop_times (st_from e st_to) sullo stesso trip_id,
-      // con la condizione st_to.stop_sequence > st_from.stop_sequence per garantire
-      // che l'arrivo venga dopo la partenza nella stessa corsa.
-      // Il calcolo in secondi via SUBSTR gestisce orari GTFS > 24:00:00 (corse notturne).
       const rows = db.prepare(`
         SELECT
           t.trip_id,
@@ -132,19 +209,14 @@ router.get('/search', async (req, res) => {
          AND st_to.stop_id = ?
          AND st_to.stop_sequence > st_from.stop_sequence
         WHERE t.service_id IN (${placeholders})
-          AND (
-            CAST(SUBSTR(st_from.departure_time, 1, 2) AS INTEGER) * 3600 +
-            CAST(SUBSTR(st_from.departure_time, 4, 2) AS INTEGER) * 60 +
-            CAST(SUBSTR(st_from.departure_time, 7, 2) AS INTEGER)
-          ) BETWEEN ? AND ?
-        ORDER BY from_dep_sec
+          AND ${timeFilter}
+        ORDER BY ${orderBy}
         LIMIT 20
       `).all(
         fromStop,
         toStop,
         ...activeServiceIds,
-        nowSec,
-        maxSec
+        ...timeParams
       );
 
       if (!rows.length) {
@@ -189,6 +261,11 @@ router.get('/search', async (req, res) => {
           arrivalTime   = secondsToHHMM(row.to_arr_sec   + rtInfo.delay);
         }
 
+        // Calcola attesa stimata in minuti
+        const depTimeParts = departureTime.split(':').map(Number);
+        const adjustedDepSec = depTimeParts[0] * 3600 + depTimeParts[1] * 60;
+        const waitMinutes = Math.max(0, Math.round((adjustedDepSec - nowSec) / 60));
+
         return {
           tripId:            row.trip_id,
           routeId:           row.route_id,
@@ -202,18 +279,25 @@ router.get('/search', async (req, res) => {
           departureTime,
           arrivalTime,
           durationMinutes,
+          waitMinutes,
           intermediateStops,
           fromStopSequence:  row.from_seq,
           toStopSequence:    row.to_seq,
           realtimeDelay,     // null = dati schedulati, intero = minuti di ritardo
           dataType,          // 'scheduled' | 'realtime'
+          solutionTags:      [], // verrà popolato da buildSolutions
         };
       });
+
+      // Calcola soluzioni consigliate per il confronto
+      const solutions = buildSolutions(journeys, nowSec, arriveBy);
 
       return {
         fromStop: { stopId: fromStopRow.stop_id, stopName: fromStopRow.stop_name, stopCode: fromStopRow.stop_code },
         toStop:   { stopId: toStopRow.stop_id,   stopName: toStopRow.stop_name,   stopCode: toStopRow.stop_code },
         journeys,
+        solutions,
+        searchMode:        arriveBy ? 'arriveBy' : 'departNow',
         realtimeAvailable: isRealtimeEnabled(),
         lookaheadMinutes:  lookahead,
         generatedAt:       new Date().toISOString(),

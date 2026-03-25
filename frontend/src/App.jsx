@@ -14,7 +14,10 @@ import TripDetail from './pages/TripDetail';
 export default function App() {
   return (
     <div className="app-container">
-      <main className="app-main">
+      {/* Skip link per screen reader e navigazione da tastiera */}
+      <a href="#main-content" className="skip-link">Vai al contenuto principale</a>
+
+      <main id="main-content" className="app-main">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/search" element={<Search />} />
