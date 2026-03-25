@@ -650,19 +650,23 @@ export default function Metro() {
   // Raccoglie tutte le stazioni metro da tutte le direzioni (dedup per stop_id)
   const allMetroStops = (() => {
     if (!data?.available) return [];
+    // Usa la prima direzione (direction_id=0) che già ha le fermate
+    // in ordine di stop_sequence dal backend — nessun riordino alfabetico.
+    // Le fermate della direzione opposta sono le stesse in senso inverso,
+    // quindi basta la prima direzione per coprire tutte le stazioni.
     const seen = new Set();
     const stops = [];
     for (const route of data.routes) {
-      for (const dir of route.directions) {
-        for (const stop of dir.stops) {
-          if (!seen.has(stop.stop_id)) {
-            seen.add(stop.stop_id);
-            stops.push(stop);
-          }
+      const firstDir = route.directions[0];
+      if (!firstDir) continue;
+      for (const stop of firstDir.stops) {
+        if (!seen.has(stop.stop_id)) {
+          seen.add(stop.stop_id);
+          stops.push(stop);
         }
       }
     }
-    return stops.sort((a, b) => a.stop_name.localeCompare(b.stop_name));
+    return stops;
   })();
 
   const metroColor = data?.routes?.[0]?.color || '#E84B24';
