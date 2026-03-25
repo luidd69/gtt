@@ -1,0 +1,58 @@
+/**
+ * api.js
+ * Client API per comunicare col backend GTT.
+ * Centralizza tutti gli endpoint per facile manutenzione.
+ */
+
+import axios from 'axios';
+
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
+
+const client = axios.create({
+  baseURL: API_BASE,
+  timeout: 15_000,
+  headers: {
+    'Accept': 'application/json',
+  },
+});
+
+// ─── Stops ────────────────────────────────────────────────────────────────────
+
+export const searchStops = (query) =>
+  client.get('/stops/search', { params: { q: query } }).then(r => r.data);
+
+export const getNearbyStops = (lat, lon, radius = 0.5) =>
+  client.get('/stops/nearby', { params: { lat, lon, radius } }).then(r => r.data);
+
+export const getStop = (stopId) =>
+  client.get(`/stops/${stopId}`).then(r => r.data);
+
+// ─── Lines ────────────────────────────────────────────────────────────────────
+
+export const getLines = (type) =>
+  client.get('/lines', { params: type !== undefined ? { type } : {} }).then(r => r.data);
+
+export const getLine = (routeId) =>
+  client.get(`/lines/${routeId}`).then(r => r.data);
+
+// ─── Arrivals ─────────────────────────────────────────────────────────────────
+
+export const getArrivals = (stopId, limit = 10) =>
+  client.get(`/arrivals/${stopId}`, { params: { limit } }).then(r => r.data);
+
+// ─── Service ─────────────────────────────────────────────────────────────────
+
+export const getServiceStatus = () =>
+  client.get('/service/status').then(r => r.data);
+
+export const getVehicles = () =>
+  client.get('/service/vehicles').then(r => r.data);
+
+export const getMetroInfo = () =>
+  client.get('/service/metro').then(r => r.data);
+
+export const getGtfsInfo = () =>
+  client.get('/service/gtfs-info').then(r => r.data);
+
+export const getHealth = () =>
+  client.get('/health').then(r => r.data);

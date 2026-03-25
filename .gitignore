@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Environment (keep .env.example)
+.env
+!.env.example
+
+# Database & Data
+backend/data/gtt.db
+backend/data/gtt.db-shm
+backend/data/gtt.db-wal
+backend/data/gtfs/
+
+# Build outputs
+frontend/dist/
+build/
+
+# OS & IDE
+.DS_Store
+.vscode/
+*.swp
+*.log
