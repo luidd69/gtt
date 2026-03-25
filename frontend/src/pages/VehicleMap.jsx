@@ -15,7 +15,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { getVehicles, getNearbyStops } from '../utils/api';
+import { getVehicles, getNearbyStops, getTripLive } from '../utils/api';
 import { getRouteTypeInfo } from '../utils/formatters';
 
 const TURIN_CENTER = [45.0703, 7.6869];
@@ -145,6 +145,7 @@ export default function VehicleMap() {
   const mapElRef        = useRef(null);
   const vehicleLayerRef = useRef(null);
   const stopLayerRef    = useRef(null);
+  const routeLayerRef   = useRef(null);    // percorso corsa stimata
   const leafletRef      = useRef(null);
   const markersRef      = useRef({});      // id → marker Leaflet
   const trackedIdRef    = useRef(null);    // id del veicolo tracciato
@@ -152,9 +153,10 @@ export default function VehicleMap() {
 
   const [filter,        setFilter]        = useState('all');
   const [mapReady,      setMapReady]      = useState(false);
-  const [trackedId,     setTrackedId]     = useState(null);   // stato React (per UI)
-  const [trackedInfo,   setTrackedInfo]   = useState(null);   // dati ultimo aggiornamento
-  const [tripNotFound,  setTripNotFound]  = useState(false);  // tripId richiesto ma non nel feed
+  const [trackedId,     setTrackedId]     = useState(null);
+  const [trackedInfo,   setTrackedInfo]   = useState(null);
+  const [tripNotFound,  setTripNotFound]  = useState(false);
+  const [estimatedPos,  setEstimatedPos]  = useState(null);   // posizione stimata corsa
 
   /* Mantiene ref e state sincronizzati */
   const setTracked = useCallback((id, vehicleData) => {
@@ -175,6 +177,15 @@ export default function VehicleMap() {
     queryFn:  getVehicles,
     refetchInterval: 15_000,
     staleTime:       10_000,
+  });
+
+  /* ── Fetch posizione stimata per tripId da URL ───────────────────── */
+  const { data: liveData } = useQuery({
+    queryKey: ['trip-live', requestedTripId],
+    queryFn:  () => getTripLive(requestedTripId),
+    enabled:  !!requestedTripId,
+    refetchInterval: 20_000,
+    staleTime:       15_000,
   });
 
   /* ── Init mappa ─────────────────────────────────────────────────── */
@@ -199,6 +210,7 @@ export default function VehicleMap() {
 
       L.control.zoom({ position: 'bottomright' }).addTo(map);
 
+      routeLayerRef.current   = L.layerGroup().addTo(map);
       vehicleLayerRef.current = L.layerGroup().addTo(map);
       stopLayerRef.current    = L.layerGroup().addTo(map);
 
@@ -259,13 +271,10 @@ export default function VehicleMap() {
     } catch {}
   }, []);
 
-  /* ── Auto-tracking da tripId URL param ──────────────────────────── */
+  /* ── Auto-tracking da tripId URL param (feed VP live) ───────────── */
   useEffect(() => {
     if (!requestedTripId || !vehicleData?.vehicles?.length || tripTrackedRef.current) return;
-
-    // Cerca il veicolo con il tripId corrispondente
     const match = vehicleData.vehicles.find(v => v.tripId === requestedTripId);
-
     if (match) {
       tripTrackedRef.current = true;
       setTripNotFound(false);
@@ -277,6 +286,90 @@ export default function VehicleMap() {
       setTripNotFound(true);
     }
   }, [requestedTripId, vehicleData, setTracked]);
+
+  /* ── Disegna percorso + posizione stimata (quando feed VP vuoto) ── */
+  useEffect(() => {
+    const L = leafletRef.current;
+    if (!L || !routeLayerRef.current || !liveData?.found) return;
+
+    // Se il veicolo è già nel feed VP live, non mostrare la stima
+    if (trackedId && !liveData) return;
+
+    routeLayerRef.current.clearLayers();
+
+    const { stops = [], position, route, status, firstStop } = liveData;
+    if (!stops.length) return;
+
+    const color = route?.color || '#E84B24';
+
+    // Polyline percorso: fermate passate in grigio, future nel colore linea
+    const passedCoords = stops.filter(s => s.passed).map(s => [s.lat, s.lon]);
+    const futureCoords = stops.filter(s => !s.passed).map(s => [s.lat, s.lon]);
+
+    // Aggiungi ultima fermata passata al tratto futuro per continuità
+    const lastPassed = passedCoords[passedCoords.length - 1];
+    if (passedCoords.length > 1) {
+      L.polyline(passedCoords, { color: '#AEAEB2', weight: 3, opacity: 0.6 })
+        .addTo(routeLayerRef.current);
+    }
+    if (futureCoords.length > 1 || (lastPassed && futureCoords.length > 0)) {
+      const full = lastPassed ? [lastPassed, ...futureCoords] : futureCoords;
+      L.polyline(full, { color, weight: 4, opacity: 0.85 })
+        .addTo(routeLayerRef.current);
+    }
+
+    // Marker piccoli fermate
+    const stopIcon = L.divIcon({
+      html: `<div style="width:7px;height:7px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.3)"></div>`,
+      className: '', iconSize: [7, 7], iconAnchor: [3.5, 3.5],
+    });
+    stops.forEach(s => {
+      L.marker([s.lat, s.lon], { icon: stopIcon })
+        .bindTooltip(s.name, { direction: 'top', offset: [0, -6] })
+        .addTo(routeLayerRef.current);
+    });
+
+    // Marker posizione stimata (se in servizio)
+    if (status === 'in_progress' && position) {
+      setEstimatedPos(liveData);
+
+      const estIcon = L.divIcon({
+        html: `<div style="
+          width:36px;height:36px;border-radius:50%;
+          background:${color};border:3px solid white;
+          display:flex;align-items:center;justify-content:center;
+          box-shadow:0 2px 8px rgba(0,0,0,0.35);
+          font-size:11px;font-weight:700;color:white;
+          font-family:-apple-system,sans-serif;">
+          ${route?.shortName || '?'}
+        </div>`,
+        className: '', iconSize: [36, 36], iconAnchor: [18, 18],
+      });
+
+      L.marker([position.lat, position.lon], { icon: estIcon, zIndexOffset: 500 })
+        .bindPopup(`
+          <div style="font-family:-apple-system,sans-serif;min-width:160px">
+            <div style="background:${color};color:white;padding:4px 10px;border-radius:8px;font-weight:700;font-size:13px;margin-bottom:8px;display:inline-block">
+              ${route?.shortName}
+            </div>
+            <div style="font-size:12px;color:#3C3C43;margin-bottom:4px">${route?.longName || ''}</div>
+            <div style="font-size:11px;color:#8E8E93;margin-top:6px">📍 Posizione stimata<br>Aggiornata ogni 20s</div>
+          </div>`, { maxWidth: 220 })
+        .addTo(routeLayerRef.current);
+
+      // Centra sulla posizione stimata al primo caricamento
+      if (!tripTrackedRef.current && mapRef.current) {
+        tripTrackedRef.current = true;
+        mapRef.current.setView([position.lat, position.lon], TRACK_ZOOM, { animate: true });
+      }
+    } else if (status === 'not_started' && firstStop) {
+      setEstimatedPos(liveData);
+      if (!tripTrackedRef.current && mapRef.current) {
+        tripTrackedRef.current = true;
+        mapRef.current.setView([firstStop.lat, firstStop.lon], TRACK_ZOOM, { animate: true });
+      }
+    }
+  }, [liveData, trackedId]);
 
   /* ── Aggiorna marker veicoli ─────────────────────────────────────── */
   useEffect(() => {
@@ -376,11 +469,23 @@ export default function VehicleMap() {
           )}
         </div>
 
-        {/* Banner veicolo non ancora nel feed */}
-        {tripNotFound && requestedTripId && (
+        {/* Banner posizione stimata (feed VP vuoto, uso interpolazione OTP) */}
+        {tripNotFound && estimatedPos?.found && (
+          <div className="notice notice-info" style={{ margin: '8px 0 0' }}>
+            <span>📍</span>
+            <span>
+              {estimatedPos.status === 'not_started'
+                ? `Corsa non ancora iniziata · parte tra ${estimatedPos.startsIn} min da ${estimatedPos.firstStop?.name}`
+                : estimatedPos.status === 'completed'
+                ? 'Corsa terminata'
+                : 'Posizione calcolata — GPS non disponibile nel feed pubblico GTT'}
+            </span>
+          </div>
+        )}
+        {tripNotFound && !estimatedPos?.found && requestedTripId && (
           <div className="notice notice-info" style={{ margin: '8px 0 0' }}>
             <span>ℹ️</span>
-            <span>Posizione non disponibile — il veicolo non è ancora nel feed in tempo reale. La posizione apparirà non appena il mezzo inizia il servizio.</span>
+            <span>Posizione non disponibile per questa corsa</span>
           </div>
         )}
 
@@ -422,6 +527,44 @@ export default function VehicleMap() {
         `}</style>
 
         <div ref={mapElRef} style={{ width: '100%', height: '100%' }} />
+
+        {/* ── Pannello posizione stimata (tripId URL, feed VP vuoto) ─── */}
+        {tripNotFound && estimatedPos?.found && estimatedPos.status === 'in_progress' && (
+          <div style={{
+            position: 'absolute', bottom: 16, left: 12, right: 12,
+            background: 'var(--color-bg-card)',
+            borderRadius: 'var(--radius-lg)',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.18)',
+            padding: '14px 16px', zIndex: 1000,
+            borderLeft: `4px solid ${estimatedPos.route?.color || 'var(--color-brand)'}`,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{
+                width: 40, height: 40, borderRadius: '50%',
+                background: estimatedPos.route?.color || 'var(--color-brand)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+                <span style={{ color: 'white', fontWeight: 700, fontSize: 14 }}>
+                  {estimatedPos.route?.shortName || '?'}
+                </span>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-3)', fontWeight: 600,
+                                 textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                    📍 Pos. stimata · {estimatedPos.progress}% percorso
+                  </span>
+                </div>
+                <div style={{ fontWeight: 700, fontSize: 15, marginTop: 1 }} className="truncate">
+                  {estimatedPos.route?.longName || `Linea ${estimatedPos.route?.shortName}`}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-2)', marginTop: 3 }} className="truncate">
+                  → {estimatedPos.nextStop?.name}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── Pannello "Stai seguendo" ──────────────────────────────── */}
         {trackedId && trackedInfo && (

@@ -22,6 +22,7 @@ const linesRouter = require('./routes/lines');
 const arrivalsRouter = require('./routes/arrivals');
 const serviceRouter = require('./routes/service');
 const journeyRouter = require('./routes/journey');
+const tripsRouter = require('./routes/trips');
 
 const PORT = parseInt(process.env.PORT) || 3001;
 const app = express();
@@ -65,6 +66,7 @@ app.use('/api/lines', linesRouter);
 app.use('/api/arrivals', arrivalsRouter);
 app.use('/api/service', serviceRouter);
 app.use('/api/journey', journeyRouter);
+app.use('/api/trips', tripsRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {

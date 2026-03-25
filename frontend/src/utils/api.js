@@ -69,6 +69,9 @@ export const getTripDetail = (tripId, fromStop, toStop) =>
   client.get(`/journey/trip/${tripId}`, { params: { fromStop, toStop } })
     .then(r => r.data);
 
+export const getTripLive = (tripId) =>
+  client.get(`/trips/${tripId}/live`).then(r => r.data);
+
 export const searchMetroJourney = (fromStop, toStop, lookahead = 90) =>
   client.get('/journey/metro', { params: { from: fromStop, to: toStop, lookahead } })
     .then(r => r.data);
