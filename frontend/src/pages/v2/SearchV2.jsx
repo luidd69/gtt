@@ -34,7 +34,12 @@ function LineItemV2({ route }) {
       to={`/lines/${route.route_id}`}
       style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0' }}
     >
-      <RouteChip route={route} />
+      <RouteChip
+        shortName={route.route_short_name}
+        routeType={route.route_type}
+        color={route.route_color ? `#${route.route_color}` : null}
+        textColor={route.route_text_color ? `#${route.route_text_color}` : null}
+      />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="v2-fw-600 v2-truncate" style={{ fontSize: 15, color: 'var(--v2-text-1)' }}>
           {route.route_long_name || route.route_short_name}
@@ -48,6 +53,41 @@ function LineItemV2({ route }) {
     </Link>
   );
 }
+
+function StopsResults({ stops, loading, query }) {
+  if (query.length < 2) {
+    return (
+      <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--v2-text-3)', fontSize: 14 }}>
+        Digita almeno 2 caratteri per cercare
+      </div>
+    );
+  }
+  if (loading) {
+    return (
+      <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--v2-text-3)', fontSize: 14 }}>
+        Ricerca in corso…
+      </div>
+    );
+  }
+  if (stops.length === 0) {
+    return (
+      <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--v2-text-3)', fontSize: 14 }}>
+        Nessuna fermata trovata per "<strong style={{ color: 'var(--v2-text-2)' }}>{query}</strong>"
+      </div>
+    );
+  }
+  return (
+    <div className="v2-list">
+      {stops.map(s => (
+        <StopCardV2
+          key={s.stop_id}
+          stop={{ stopId: s.stop_id, stopName: s.stop_name, stopDesc: s.stop_desc }}
+        />
+      ))}
+    </div>
+  );
+}
+
 
 function LinesExplorerV2({ query = '' }) {
   const [activeType, setActiveType] = useState(null);
@@ -117,7 +157,7 @@ export default function SearchV2() {
   const [activeTab, setActiveTab] = useState(0);
   const debouncedQuery = useDebounce(query, 300);
 
-  const { data: stopsData, isLoading: stopsLoading, isFetching } = useQuery({
+  const { data: stopsData, status: stopsStatus, isFetching } = useQuery({
     queryKey: ['search-stops', debouncedQuery],
     queryFn: () => searchStops(debouncedQuery),
     enabled: activeTab === 0 && debouncedQuery.length >= 2,
@@ -195,34 +235,11 @@ export default function SearchV2() {
 
         {/* Results */}
         {activeTab === 0 ? (
-          <>
-            {stopsLoading && isFetching && (
-              <div style={{ padding: 32, textAlign: 'center', color: 'var(--v2-text-3)' }}>
-                Ricerca in corso…
-              </div>
-            )}
-            {debouncedQuery.length >= 2 && !stopsLoading && stops.length === 0 && (
-              <div style={{ padding: 32, textAlign: 'center', color: 'var(--v2-text-3)' }}>
-                Nessuna fermata trovata per "<strong>{debouncedQuery}</strong>"
-              </div>
-            )}
-            {debouncedQuery.length < 2 && (
-              <div style={{ padding: 32, textAlign: 'center', color: 'var(--v2-text-3)' }}>
-                Digita almeno 2 caratteri per cercare
-              </div>
-            )}
-            {stops.length > 0 && (
-              <div className="v2-list">
-                {stops.map(s => (
-                  <StopCardV2 key={s.stop_id} stop={{
-                    stopId: s.stop_id,
-                    stopName: s.stop_name,
-                    stopDesc: s.stop_desc,
-                  }} />
-                ))}
-              </div>
-            )}
-          </>
+        <StopsResults
+            stops={stops}
+            loading={stopsStatus === 'pending' && isFetching}
+            query={debouncedQuery}
+          />
         ) : (
           <LinesExplorerV2 query={query} />
         )}
