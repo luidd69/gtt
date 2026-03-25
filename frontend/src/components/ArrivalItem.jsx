@@ -1,12 +1,16 @@
 /**
  * ArrivalItem.jsx
  * Singola riga di arrivo con supporto orario statico e realtime.
+ * Click → mappa veicoli con tracking automatico sul tripId.
  */
 
-import { getRouteTypeInfo, getRouteChipStyle, formatWait, formatDelay, truncateHeadsign } from '../utils/formatters';
+import { useNavigate } from 'react-router-dom';
+import { getRouteTypeInfo, formatWait, truncateHeadsign } from '../utils/formatters';
 
 export default function ArrivalItem({ arrival }) {
+  const navigate = useNavigate();
   const {
+    tripId,
     routeShortName,
     routeType,
     routeColor,
@@ -31,8 +35,20 @@ export default function ArrivalItem({ arrival }) {
   const displayTime = realtimeTime || scheduledTime;
   const waitText = formatWait(waitMinutes, displayTime);
 
+  const handleClick = () => {
+    if (tripId) navigate(`/map?tripId=${encodeURIComponent(tripId)}`);
+  };
+
   return (
-    <div className="arrival-item">
+    <div
+      className="arrival-item"
+      onClick={handleClick}
+      role={tripId ? 'button' : undefined}
+      tabIndex={tripId ? 0 : undefined}
+      onKeyDown={tripId ? (e) => e.key === 'Enter' && handleClick() : undefined}
+      style={{ cursor: tripId ? 'pointer' : 'default' }}
+      aria-label={tripId ? `Vedi posizione veicolo linea ${routeShortName}` : undefined}
+    >
       {/* Chip linea */}
       <span
         className={`route-chip ${chipStyle ? 'custom' : typeInfo.cssClass}`}
@@ -63,7 +79,7 @@ export default function ArrivalItem({ arrival }) {
         </div>
       </div>
 
-      {/* Orario + attesa */}
+      {/* Orario + attesa + icona mappa */}
       <div className="arrival-time-block">
         {isDelayed && (
           <span className="arrival-scheduled">{scheduledTime}</span>
@@ -71,8 +87,11 @@ export default function ArrivalItem({ arrival }) {
         <span className={`arrival-time${isSoon ? ' soon' : ''}`}>
           {isSoon ? waitText : displayTime}
         </span>
-        <span className="arrival-wait">
+        <span className="arrival-wait" style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
           {isSoon ? scheduledTime : waitText}
+          {tripId && (
+            <span style={{ fontSize: 11, color: 'var(--color-text-3)', marginLeft: 2 }}>📍</span>
+          )}
         </span>
       </div>
     </div>

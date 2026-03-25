@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getVehicles, getNearbyStops } from '../utils/api';
 import { getRouteTypeInfo } from '../utils/formatters';
@@ -136,6 +137,10 @@ function buildPopupHtml(v, isTracked) {
 
 /* ── Componente principale ────────────────────────────────────────── */
 export default function VehicleMap() {
+  const [searchParams]  = useSearchParams();
+  const navigate        = useNavigate();
+  const requestedTripId = searchParams.get('tripId'); // tripId dall'arrivo cliccato
+
   const mapRef          = useRef(null);
   const mapElRef        = useRef(null);
   const vehicleLayerRef = useRef(null);
@@ -143,11 +148,13 @@ export default function VehicleMap() {
   const leafletRef      = useRef(null);
   const markersRef      = useRef({});      // id → marker Leaflet
   const trackedIdRef    = useRef(null);    // id del veicolo tracciato
+  const tripTrackedRef  = useRef(false);   // già attivato tracking per tripId
 
   const [filter,        setFilter]        = useState('all');
   const [mapReady,      setMapReady]      = useState(false);
   const [trackedId,     setTrackedId]     = useState(null);   // stato React (per UI)
   const [trackedInfo,   setTrackedInfo]   = useState(null);   // dati ultimo aggiornamento
+  const [tripNotFound,  setTripNotFound]  = useState(false);  // tripId richiesto ma non nel feed
 
   /* Mantiene ref e state sincronizzati */
   const setTracked = useCallback((id, vehicleData) => {
@@ -252,6 +259,25 @@ export default function VehicleMap() {
     } catch {}
   }, []);
 
+  /* ── Auto-tracking da tripId URL param ──────────────────────────── */
+  useEffect(() => {
+    if (!requestedTripId || !vehicleData?.vehicles?.length || tripTrackedRef.current) return;
+
+    // Cerca il veicolo con il tripId corrispondente
+    const match = vehicleData.vehicles.find(v => v.tripId === requestedTripId);
+
+    if (match) {
+      tripTrackedRef.current = true;
+      setTripNotFound(false);
+      setTracked(match.id, match);
+      if (mapRef.current) {
+        mapRef.current.setView([match.lat, match.lon], TRACK_ZOOM, { animate: true });
+      }
+    } else {
+      setTripNotFound(true);
+    }
+  }, [requestedTripId, vehicleData, setTracked]);
+
   /* ── Aggiorna marker veicoli ─────────────────────────────────────── */
   useEffect(() => {
     const L = leafletRef.current;
@@ -321,12 +347,25 @@ export default function VehicleMap() {
       {/* ── Header ────────────────────────────────────────────────── */}
       <div className="page-header" style={{ flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <div className="page-title">Mappa veicoli</div>
-            <div className="page-subtitle">
-              {isLoading ? 'Caricamento...'
-                : counts?.all > 0 ? `${counts.all} veicoli in circolazione`
-                : 'Nessun veicolo attivo al momento'}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {requestedTripId && (
+              <button
+                onClick={() => navigate(-1)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--color-brand)' }}
+                aria-label="Torna indietro"
+              >
+                <svg width="10" height="17" viewBox="0 0 10 17" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                  <path d="M9 1L1 8.5 9 16"/>
+                </svg>
+              </button>
+            )}
+            <div>
+              <div className="page-title">Mappa veicoli</div>
+              <div className="page-subtitle">
+                {isLoading ? 'Caricamento...'
+                  : counts?.all > 0 ? `${counts.all} veicoli in circolazione`
+                  : 'Nessun veicolo attivo al momento'}
+              </div>
             </div>
           </div>
           {updatedTime && (
@@ -336,6 +375,14 @@ export default function VehicleMap() {
             </div>
           )}
         </div>
+
+        {/* Banner veicolo non ancora nel feed */}
+        {tripNotFound && requestedTripId && (
+          <div className="notice notice-info" style={{ margin: '8px 0 0' }}>
+            <span>ℹ️</span>
+            <span>Posizione non disponibile — il veicolo non è ancora nel feed in tempo reale. La posizione apparirà non appena il mezzo inizia il servizio.</span>
+          </div>
+        )}
 
         {/* Filtri */}
         <div style={{ display: 'flex', gap: 6, marginTop: 10, overflowX: 'auto', paddingBottom: 2 }}>
