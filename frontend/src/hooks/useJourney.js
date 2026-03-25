@@ -21,6 +21,6 @@ export function useJourney(fromStopId, toStopId, enabled = true, options = {}) {
     queryFn: () => searchJourney(fromStopId, toStopId, { lookahead, arriveBy }),
     enabled: enabled && !!fromStopId && !!toStopId,
     staleTime: 60_000,
-    retry: 2,
+    retry: 1,
   });
 }

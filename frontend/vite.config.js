@@ -16,6 +16,12 @@ export default defineConfig({
   preview: {
     port: 5173,
     allowedHosts: ['85-25-172-74.sslip.io'],
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3011',
+        changeOrigin: true,
+      },
+    },
   },
   build: {
     outDir: 'dist',

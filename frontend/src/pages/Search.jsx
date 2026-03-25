@@ -50,13 +50,22 @@ function LineItem({ route }) {
   );
 }
 
-function LinesExplorer() {
+function LinesExplorer({ query = '' }) {
   const [activeType, setActiveType] = useState(null);
   const { data, isLoading } = useQuery({
     queryKey: ['lines', activeType],
     queryFn: () => getLines(activeType),
     staleTime: 10 * 60_000,
   });
+
+  const q = query.trim().toLowerCase();
+  const allRoutes = data?.lines?.flatMap(group => group.routes) ?? [];
+  const filtered = q
+    ? allRoutes.filter(r =>
+        r.route_short_name?.toLowerCase().includes(q) ||
+        r.route_long_name?.toLowerCase().includes(q)
+      )
+    : allRoutes;
 
   const TYPE_TABS = [
     { type: null, label: 'Tutte' },
@@ -93,9 +102,15 @@ function LinesExplorer() {
 
       {isLoading ? (
         <LoadingSpinner />
+      ) : filtered.length === 0 && q ? (
+        <div className="empty-state">
+          <div className="empty-state-icon">🚌</div>
+          <p className="empty-state-title">Nessuna linea trovata</p>
+          <p className="empty-state-msg">Prova con un numero o nome diverso</p>
+        </div>
       ) : (
         <div className="list-card">
-          {data?.lines?.flatMap(group => group.routes).map(route => (
+          {filtered.map(route => (
             <LineItem key={route.route_id} route={route} />
           ))}
         </div>
@@ -124,7 +139,7 @@ export default function Search() {
           <SearchBar
             value={query}
             onChange={setQuery}
-            placeholder="Nome o codice fermata..."
+            placeholder={activeTab === 'lines' ? 'Numero o nome linea...' : 'Nome o codice fermata...'}
             autoFocus={false}
           />
         </div>
@@ -182,7 +197,7 @@ export default function Search() {
         )}
 
         {/* Tab Linee */}
-        {activeTab === 'lines' && <LinesExplorer />}
+        {activeTab === 'lines' && <LinesExplorer query={query} />}
       </div>
     </div>
   );

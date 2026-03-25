@@ -101,11 +101,17 @@ function ArrivalsSection({ stopId }) {
             <span>Dati in tempo reale</span>
           </>
         )}
+        {realtimeStatus === 'on_time' && (
+          <>
+            <span className="realtime-dot" style={{ background: 'var(--color-success)' }} />
+            <span>In tempo reale · tutti i veicoli in orario</span>
+          </>
+        )}
         {realtimeStatus === 'empty' && (
-          <span>✓ Feed attivo · veicoli in orario o servizio non ancora avviato</span>
+          <span>✓ Feed attivo · nessun aggiornamento disponibile</span>
         )}
         {realtimeStatus === 'unreachable' && (
-          <span>⚠️ Feed temporaneamente non raggiungibile · orari programmati</span>
+          <span>⚠️ Feed non raggiungibile · orari programmati</span>
         )}
         {(!realtimeStatus || realtimeStatus === 'disabled') && (
           <span>📅 Orari programmati ufficiali</span>
