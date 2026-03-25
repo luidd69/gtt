@@ -7,6 +7,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getServiceStatus, getGtfsInfo } from '../utils/api';
 import useFavoritesStore from '../store/favoritesStore';
+import useThemeStore from '../store/themeStore';
 import StopCard from '../components/StopCard';
 
 const QUICK_ACTIONS = [
@@ -170,23 +171,50 @@ function GtfsInfo() {
 }
 
 export default function Home() {
+  const navigate = useNavigate();
+  const setTheme = useThemeStore(s => s.setTheme);
+
+  function goToV2() {
+    setTheme('v2');
+    navigate('/v2');
+  }
+
   return (
     <div className="page">
       {/* Header */}
       <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 8,
-            background: 'var(--color-brand)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 20,
-          }}>
-            🚌
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 8,
+              background: 'var(--color-brand)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 20,
+            }}>
+              🚌
+            </div>
+            <div>
+              <div className="page-title" style={{ fontSize: 20 }}>GTT Torino</div>
+              <div className="page-subtitle">Orari e arrivi</div>
+            </div>
           </div>
-          <div>
-            <div className="page-title" style={{ fontSize: 20 }}>GTT Torino</div>
-            <div className="page-subtitle">Orari e arrivi</div>
-          </div>
+          <button
+            onClick={goToV2}
+            style={{
+              background: 'var(--color-bg-card)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-pill)',
+              padding: '6px 12px',
+              fontSize: 12,
+              fontWeight: 700,
+              color: 'var(--color-brand)',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+            aria-label="Prova il nuovo design V2"
+          >
+            ✨ Nuovo design
+          </button>
         </div>
       </div>
 
