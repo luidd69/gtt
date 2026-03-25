@@ -114,23 +114,29 @@ function buildPopupHtml(v, isTracked) {
         <span style="background:${color};color:white;padding:3px 10px;border-radius:100px;
                      font-weight:700;font-size:13px">${v.routeShortName}</span>
         <span style="font-size:12px;color:#6C6C70">${getRouteTypeInfo(v.routeType).label}</span>
+        ${v.estimated ? '<span style="font-size:10px;color:#AEAEB2;margin-left:auto">~stimata</span>' : ''}
       </div>
-      ${v.routeLongName
+      ${v.headsign || v.routeLongName
         ? `<div style="font-size:12px;color:#3C3C43;margin-bottom:6px;
-                       overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px">${v.routeLongName}</div>`
+                       overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px">
+             → ${v.headsign || v.routeLongName}
+           </div>`
         : ''}
       <div style="display:flex;flex-direction:column;gap:3px;font-size:12px">
         <div><b>Stato:</b> ${v.currentStatus}</div>
         ${v.speed  != null ? `<div><b>Velocità:</b> ${v.speed} km/h</div>` : ''}
         ${v.occupancy       ? `<div><b>Occupazione:</b> ${v.occupancy}</div>` : ''}
         ${v.bearing != null ? `<div><b>Direzione:</b> ${Math.round(v.bearing)}°</div>` : ''}
-        ${v.vehicleLabel    ? `<div><b>Veicolo:</b> ${v.vehicleLabel}</div>` : ''}
       </div>
-      ${v.timestamp
-        ? `<div style="font-size:10px;color:#AEAEB2;margin-top:4px">
-             Aggiornato: ${new Date(v.timestamp).toLocaleTimeString('it-IT')}
+      ${v.estimated
+        ? `<div style="font-size:10px;color:#AEAEB2;margin-top:6px">
+             📍 Posizione calcolata da orari programmati
            </div>`
-        : ''}
+        : v.timestamp
+          ? `<div style="font-size:10px;color:#AEAEB2;margin-top:4px">
+               GPS · ${new Date(v.timestamp).toLocaleTimeString('it-IT')}
+             </div>`
+          : ''}
       ${trackBtn}
     </div>`;
 }
@@ -171,12 +177,12 @@ export default function VehicleMap() {
     mapRef.current?.closePopup();
   }, [setTracked]);
 
-  /* ── Fetch veicoli ogni 15s ─────────────────────────────────────── */
+  /* ── Fetch veicoli ogni 30s (stimate) / 15s (GPS) ───────────────── */
   const { data: vehicleData, isLoading, dataUpdatedAt } = useQuery({
     queryKey: ['vehicles'],
     queryFn:  getVehicles,
-    refetchInterval: 15_000,
-    staleTime:       10_000,
+    refetchInterval: 30_000,
+    staleTime:       25_000,
   });
 
   /* ── Fetch posizione stimata per tripId da URL ───────────────────── */
@@ -456,7 +462,8 @@ export default function VehicleMap() {
               <div className="page-title">Mappa veicoli</div>
               <div className="page-subtitle">
                 {isLoading ? 'Caricamento...'
-                  : counts?.all > 0 ? `${counts.all} veicoli in circolazione`
+                  : counts?.all > 0
+                    ? `${counts.all} veicoli${vehicleData?.source === 'gtfs-estimated' ? ' · pos. stimate' : ' in circolazione'}`
                   : 'Nessun veicolo attivo al momento'}
               </div>
             </div>
