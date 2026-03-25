@@ -33,6 +33,7 @@ const {
   checkRealtimeHealth,
 } = require('../gtfs/realtime');
 const { getActiveServiceIds } = require('../utils/serviceCalendar');
+const { getOtpPlan } = require('../gtfs/otp');
 
 const LOOKAHEAD_DEFAULT = 120; // minuti
 
@@ -221,12 +222,15 @@ router.get('/search', async (req, res) => {
       );
 
       if (!rows.length) {
+        const noResultMsg = arriveBy
+          ? `Nessuna corsa diretta per arrivare prima delle ${arriveBy}`
+          : `Nessuna corsa diretta nei prossimi ${lookahead} minuti`;
         return {
           fromStop: { stopId: fromStopRow.stop_id, stopName: fromStopRow.stop_name, stopCode: fromStopRow.stop_code },
           toStop:   { stopId: toStopRow.stop_id,   stopName: toStopRow.stop_name,   stopCode: toStopRow.stop_code },
           journeys: [],
           realtimeAvailable: isRealtimeEnabled(),
-          message: `Nessuna corsa diretta nei prossimi ${lookahead} minuti`,
+          message: noResultMsg,
           generatedAt: new Date().toISOString(),
         };
       }
@@ -901,6 +905,185 @@ router.get('/metro', async (req, res) => {
   } catch (err) {
     console.error('[journey/metro]', err);
     res.status(500).json({ error: 'Errore nel calcolo del percorso metro' });
+  }
+});
+
+/**
+ * GET /api/journey/plan
+ * Pianificatore itinerari con OTP (cambi inclusi).
+ * Fallback su corse dirette GTFS se OTP non è raggiungibile.
+ *
+ * Query params:
+ *   from      - stop_id fermata di partenza (obbligatorio)
+ *   to        - stop_id fermata di arrivo (obbligatorio)
+ *   arriveBy  - orario di arrivo desiderato HH:MM (opzionale)
+ */
+router.get('/plan', async (req, res) => {
+  const { from: fromStop, to: toStop, arriveBy } = req.query;
+
+  if (!fromStop || !toStop) {
+    return res.status(400).json({ error: 'Parametri from e to obbligatori' });
+  }
+  if (fromStop === toStop) {
+    return res.status(400).json({ error: 'Le fermate di partenza e arrivo devono essere diverse' });
+  }
+
+  try {
+    const db = getDb();
+
+    const fromStopRow = db.prepare(
+      'SELECT stop_id, stop_name, stop_code, stop_lat, stop_lon FROM stops WHERE stop_id = ?'
+    ).get(fromStop);
+    const toStopRow = db.prepare(
+      'SELECT stop_id, stop_name, stop_code, stop_lat, stop_lon FROM stops WHERE stop_id = ?'
+    ).get(toStop);
+
+    if (!fromStopRow) return res.status(404).json({ error: 'Fermata di partenza non trovata' });
+    if (!toStopRow)   return res.status(404).json({ error: 'Fermata di arrivo non trovata' });
+
+    const fromStopInfo = { stopId: fromStopRow.stop_id, stopName: fromStopRow.stop_name, stopCode: fromStopRow.stop_code };
+    const toStopInfo   = { stopId: toStopRow.stop_id,   stopName: toStopRow.stop_name,   stopCode: toStopRow.stop_code };
+
+    // Calcola data/ora per OTP
+    const now = new Date();
+    let otpDate, otpTime;
+    if (arriveBy) {
+      otpDate = now.toISOString().substring(0, 10);
+      otpTime = `${arriveBy}:00`;
+    }
+
+    const otpResult = await getOtpPlan(
+      fromStopRow.stop_lat, fromStopRow.stop_lon,
+      toStopRow.stop_lat,   toStopRow.stop_lon,
+      { numItineraries: 5, date: otpDate, time: otpTime, arriveBy: !!arriveBy }
+    );
+
+    // OTP disponibile
+    if (otpResult !== null) {
+      return res.json({
+        fromStop:    fromStopInfo,
+        toStop:      toStopInfo,
+        itineraries: otpResult,
+        source:      'otp',
+        fallback:    false,
+        generatedAt: new Date().toISOString(),
+      });
+    }
+
+    // ── Fallback GTFS diretto ──────────────────────────────────────────────────
+    const activeServiceIds = getActiveServiceIds(db);
+    let itineraries = [];
+
+    if (activeServiceIds.length) {
+      const placeholders = activeServiceIds.map(() => '?').join(',');
+      const nowSec = nowInSeconds();
+      const lookahead = 120;
+
+      let timeFilter, timeParams;
+      if (arriveBy) {
+        const [hh, mm] = arriveBy.split(':').map(Number);
+        const arriveBy_sec = hh * 3600 + mm * 60;
+        const minSec = arriveBy_sec - lookahead * 60;
+        timeFilter = `(
+          CAST(SUBSTR(st_to.arrival_time, 1, 2) AS INTEGER) * 3600 +
+          CAST(SUBSTR(st_to.arrival_time, 4, 2) AS INTEGER) * 60 +
+          CAST(SUBSTR(st_to.arrival_time, 7, 2) AS INTEGER)
+        ) BETWEEN ? AND ?`;
+        timeParams = [minSec, arriveBy_sec];
+      } else {
+        const maxSec = nowSec + lookahead * 60;
+        timeFilter = `(
+          CAST(SUBSTR(st_from.departure_time, 1, 2) AS INTEGER) * 3600 +
+          CAST(SUBSTR(st_from.departure_time, 4, 2) AS INTEGER) * 60 +
+          CAST(SUBSTR(st_from.departure_time, 7, 2) AS INTEGER)
+        ) BETWEEN ? AND ?`;
+        timeParams = [nowSec, maxSec];
+      }
+
+      const rows = db.prepare(`
+        SELECT
+          t.trip_id,
+          r.route_short_name,
+          r.route_long_name,
+          r.route_type,
+          r.route_color,
+          r.route_text_color,
+          t.trip_headsign,
+          st_from.stop_sequence  AS from_seq,
+          st_from.departure_time AS from_departure,
+          (
+            CAST(SUBSTR(st_from.departure_time, 1, 2) AS INTEGER) * 3600 +
+            CAST(SUBSTR(st_from.departure_time, 4, 2) AS INTEGER) * 60 +
+            CAST(SUBSTR(st_from.departure_time, 7, 2) AS INTEGER)
+          ) AS from_dep_sec,
+          st_to.arrival_time AS to_arrival,
+          (
+            CAST(SUBSTR(st_to.arrival_time, 1, 2) AS INTEGER) * 3600 +
+            CAST(SUBSTR(st_to.arrival_time, 4, 2) AS INTEGER) * 60 +
+            CAST(SUBSTR(st_to.arrival_time, 7, 2) AS INTEGER)
+          ) AS to_arr_sec
+        FROM trips t
+        JOIN routes r ON r.route_id = t.route_id
+        JOIN stop_times st_from
+          ON st_from.trip_id = t.trip_id AND st_from.stop_id = ?
+        JOIN stop_times st_to
+          ON st_to.trip_id = t.trip_id AND st_to.stop_id = ?
+         AND st_to.stop_sequence > st_from.stop_sequence
+        WHERE t.service_id IN (${placeholders})
+          AND ${timeFilter}
+        ORDER BY ${arriveBy ? 'to_arr_sec DESC' : 'from_dep_sec'}
+        LIMIT 10
+      `).all(fromStop, toStop, ...activeServiceIds, ...timeParams);
+
+      itineraries = rows.map(row => {
+        const depTime = row.from_departure.substring(0, 5);
+        const arrTime = row.to_arrival.substring(0, 5);
+        const durationMin = Math.round((row.to_arr_sec - row.from_dep_sec) / 60);
+        const mode = row.route_type === 1 ? 'SUBWAY' : row.route_type === 0 ? 'TRAM' : 'BUS';
+        const leg = {
+          mode,
+          startTime:   depTime,
+          endTime:     arrTime,
+          durationMin,
+          realTime:    false,
+          distanceM:   0,
+          from: { name: fromStopRow.stop_name, stopId: fromStopRow.stop_id },
+          to:   { name: toStopRow.stop_name,   stopId: toStopRow.stop_id   },
+          route: {
+            shortName: row.route_short_name || '',
+            longName:  row.route_long_name  || null,
+            color:     row.route_color     ? `#${row.route_color}`     : null,
+            textColor: row.route_text_color ? `#${row.route_text_color}` : null,
+            type:      row.route_type,
+          },
+          tripId: row.trip_id,
+        };
+        return {
+          departureTime: depTime,
+          arrivalTime:   arrTime,
+          durationMin,
+          waitingMin:    0,
+          walkMin:       0,
+          walkDistanceM: 0,
+          transfers:     0,
+          legs:          [leg],
+          transitLegs:   [leg],
+        };
+      });
+    }
+
+    return res.json({
+      fromStop:    fromStopInfo,
+      toStop:      toStopInfo,
+      itineraries,
+      source:      'gtfs_direct',
+      fallback:    true,
+      generatedAt: new Date().toISOString(),
+    });
+
+  } catch (err) {
+    console.error('[journey/plan]', err);
+    res.status(500).json({ error: 'Errore nel calcolo del percorso' });
   }
 });
 

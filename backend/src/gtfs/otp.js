@@ -203,4 +203,149 @@ async function checkOtpHealth() {
   }
 }
 
-module.exports = { getOtpArrivals, checkOtpHealth };
+// ─── Journey Plan ─────────────────────────────────────────────────────────────
+
+const PLAN_QUERY = `
+query OtpPlan(
+  $from: InputCoordinates!,
+  $to:   InputCoordinates!,
+  $numItineraries: Int!,
+  $date: String!,
+  $time: String!,
+  $arriveBy: Boolean!
+) {
+  plan(
+    from: $from
+    to:   $to
+    numItineraries: $numItineraries
+    date:      $date
+    time:      $time
+    arriveBy:  $arriveBy
+    transportModes: [
+      {mode: BUS}, {mode: TRAM}, {mode: SUBWAY}, {mode: WALK}
+    ]
+  ) {
+    itineraries {
+      duration
+      startTime
+      endTime
+      waitingTime
+      walkTime
+      walkDistance
+      legs {
+        mode
+        startTime
+        endTime
+        duration
+        realTime
+        distance
+        from { name lat lon stop { gtfsId name } }
+        to   { name lat lon stop { gtfsId name } }
+        route { gtfsId shortName longName color textColor mode }
+        trip  { gtfsId }
+      }
+    }
+  }
+}
+`;
+
+/**
+ * Converte ms Unix → "HH:MM"
+ */
+function msToHHMM(ms) {
+  const d = new Date(Number(ms));
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+/**
+ * Pianifica un itinerario con OTP (con supporto cambi).
+ *
+ * @param {number} fromLat
+ * @param {number} fromLon
+ * @param {number} toLat
+ * @param {number} toLon
+ * @param {object} options  { numItineraries=5, date, time, arriveBy=false }
+ * @returns {Array|null}    array di itinerari normalizzati, null se OTP non raggiungibile
+ */
+async function getOtpPlan(fromLat, fromLon, toLat, toLon, options = {}) {
+  const { numItineraries = 5, arriveBy = false } = options;
+
+  const now  = new Date();
+  const date = options.date || now.toISOString().substring(0, 10);
+  const time = options.time ||
+    `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+
+  try {
+    const response = await axios.post(OTP_URL, {
+      query: PLAN_QUERY,
+      variables: {
+        from: { lat: fromLat, lon: fromLon },
+        to:   { lat: toLat,   lon: toLon   },
+        numItineraries,
+        date,
+        time,
+        arriveBy,
+      },
+    }, {
+      timeout: OTP_TIMEOUT_MS,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept':        'application/json',
+      },
+    });
+
+    const itineraries = response.data?.data?.plan?.itineraries;
+    if (!itineraries?.length) return [];
+
+    return itineraries.map(itin => {
+      const legs = itin.legs.map(leg => {
+        const isWalk = leg.mode === 'WALK';
+        const r      = leg.route;
+        return {
+          mode:        leg.mode,
+          startTime:   msToHHMM(leg.startTime),
+          endTime:     msToHHMM(leg.endTime),
+          durationMin: Math.round((leg.duration || 0) / 60),
+          realTime:    leg.realTime || false,
+          distanceM:   Math.round(leg.distance || 0),
+          from: {
+            name:   leg.from?.stop?.name || leg.from?.name || '',
+            stopId: leg.from?.stop?.gtfsId?.replace(/^gtt:/, '') || null,
+          },
+          to: {
+            name:   leg.to?.stop?.name || leg.to?.name || '',
+            stopId: leg.to?.stop?.gtfsId?.replace(/^gtt:/, '') || null,
+          },
+          route: (isWalk || !r) ? null : {
+            shortName: r.shortName || '',
+            longName:  r.longName  || null,
+            color:     r.color     ? `#${r.color}`     : null,
+            textColor: r.textColor ? `#${r.textColor}` : null,
+            type:      OTP_MODE_TO_ROUTE_TYPE[r.mode] ?? 3,
+          },
+          tripId: leg.trip?.gtfsId?.replace(/^gtt:/, '') || null,
+        };
+      });
+
+      const transitLegs = legs.filter(l => l.mode !== 'WALK');
+
+      return {
+        departureTime: msToHHMM(itin.startTime),
+        arrivalTime:   msToHHMM(itin.endTime),
+        durationMin:   Math.round((itin.duration   || 0) / 60),
+        waitingMin:    Math.round((itin.waitingTime || 0) / 60),
+        walkMin:       Math.round((itin.walkTime    || 0) / 60),
+        walkDistanceM: Math.round(itin.walkDistance || 0),
+        transfers:     Math.max(0, transitLegs.length - 1),
+        legs,
+        transitLegs,
+      };
+    });
+
+  } catch (err) {
+    console.warn('[OTP] Errore getOtpPlan:', err.message);
+    return null;
+  }
+}
+
+module.exports = { getOtpArrivals, getOtpPlan, checkOtpHealth };

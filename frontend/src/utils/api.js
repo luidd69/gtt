@@ -75,3 +75,8 @@ export const getTripLive = (tripId) =>
 export const searchMetroJourney = (fromStop, toStop, lookahead = 90) =>
   client.get('/journey/metro', { params: { from: fromStop, to: toStop, lookahead } })
     .then(r => r.data);
+
+export const planJourney = (fromStopId, toStopId, { arriveBy } = {}) =>
+  client.get('/journey/plan', {
+    params: { from: fromStopId, to: toStopId, ...(arriveBy ? { arriveBy } : {}) },
+  }).then(r => r.data);

@@ -9,12 +9,13 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useJourney } from '../hooks/useJourney';
+import { useQuery } from '@tanstack/react-query';
 import StopPicker from '../components/StopPicker';
 import { SkeletonList } from '../components/LoadingSpinner';
 import ErrorState from '../components/ErrorState';
 import { getRouteTypeInfo } from '../utils/formatters';
 import useFavoritesStore from '../store/favoritesStore';
+import { planJourney } from '../utils/api';
 
 // ─── Icone ────────────────────────────────────────────────────────────────────
 
@@ -161,6 +162,119 @@ function JourneyCard({ journey, highlighted, onClick }) {
   );
 }
 
+// ─── Hook usePlan ─────────────────────────────────────────────────────────────
+
+function usePlan(fromStopId, toStopId, enabled, options = {}) {
+  const { arriveBy } = options;
+  return useQuery({
+    queryKey: ['journey-plan', fromStopId, toStopId, arriveBy],
+    queryFn:  () => planJourney(fromStopId, toStopId, { arriveBy }),
+    enabled:  enabled && !!fromStopId && !!toStopId,
+    staleTime: 60_000,
+    retry: 1,
+  });
+}
+
+// ─── LegStrip — visualizzazione compatta delle tratte ────────────────────────
+
+function LegStrip({ legs }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
+      {legs.map((leg, i) => {
+        if (leg.mode === 'WALK') {
+          return (
+            <span key={i} style={{
+              fontSize: 11, color: 'var(--color-text-3)',
+              display: 'flex', alignItems: 'center', gap: 2,
+            }}>
+              🚶 {leg.durationMin}min
+              {i < legs.length - 1 && <span style={{ margin: '0 2px', color: 'var(--color-border)' }}>──</span>}
+            </span>
+          );
+        }
+        const typeInfo = getRouteTypeInfo(leg.route?.type ?? 3);
+        const chipStyle = leg.route?.color
+          ? { backgroundColor: leg.route.color, color: leg.route.textColor || '#fff' }
+          : null;
+        return (
+          <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span
+              className={`route-chip ${chipStyle ? 'custom' : typeInfo.cssClass}`}
+              style={chipStyle ?? undefined}
+            >
+              {leg.route?.shortName || leg.mode}
+            </span>
+            {i < legs.length - 1 && (
+              <span style={{ fontSize: 11, color: 'var(--color-border)' }}>──</span>
+            )}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── ItineraryCard — card per ogni itinerario OTP ────────────────────────────
+
+function ItineraryCard({ itinerary, onClick }) {
+  const hasRealtime = itinerary.legs.some(l => l.realTime);
+  const transferLabel = itinerary.transfers === 0
+    ? 'diretto'
+    : `${itinerary.transfers} ${itinerary.transfers === 1 ? 'cambio' : 'cambi'}`;
+
+  return (
+    <button
+      className="list-item"
+      onClick={onClick}
+      aria-label={`Itinerario partenza ${itinerary.departureTime}, arrivo ${itinerary.arrivalTime}, ${itinerary.durationMin} minuti, ${transferLabel}`}
+    >
+      {/* Tratte */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <LegStrip legs={itinerary.legs} />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+          {hasRealtime && (
+            <span className="realtime-dot" aria-label="Dati in tempo reale" />
+          )}
+          <span className="text-xs text-2">{itinerary.durationMin} min</span>
+          <span className="text-xs text-3">·</span>
+          <span className="text-xs text-2">{transferLabel}</span>
+          {itinerary.walkMin > 0 && (
+            <>
+              <span className="text-xs text-3">·</span>
+              <span className="text-xs text-2">🚶 {itinerary.walkMin} min a piedi</span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Orari */}
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'flex-end',
+        flexShrink: 0, gap: 2,
+      }}>
+        <span style={{
+          fontSize: 22, fontWeight: 700,
+          fontVariantNumeric: 'tabular-nums',
+          color: 'var(--color-text)',
+          lineHeight: 1.1,
+        }}>
+          {itinerary.departureTime}
+        </span>
+        <span className="text-xs text-2" style={{ fontVariantNumeric: 'tabular-nums' }}>
+          arr. {itinerary.arrivalTime}
+        </span>
+      </div>
+
+      {/* Chevron */}
+      <svg className="chevron" width="8" height="13" viewBox="0 0 8 13" fill="none"
+        stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+        <path d="M1 1l6 5.5L1 12" />
+      </svg>
+    </button>
+  );
+}
+
 // ─── Modale riepilogo soluzioni ──────────────────────────────────────────────
 
 function SolutionsSummary({ journeys, solutions, onSelect }) {
@@ -273,7 +387,7 @@ export default function JourneyPlanner() {
   // Calcola il valore arriveBy da passare all'hook
   const arriveBy = searchMode === 'arriveBy' && arriveByTime ? arriveByTime : undefined;
 
-  const { data, isLoading, isError, error, refetch } = useJourney(
+  const { data, isLoading, isError, error, refetch } = usePlan(
     fromStop?.stop_id,
     toStop?.stop_id,
     searched,
@@ -293,24 +407,26 @@ export default function JourneyPlanner() {
     setSearched(false);
   }, [fromStop, toStop]);
 
-  const handleJourneySelect = useCallback((journey) => {
-    // Salva il percorso tra i frequenti
+  const handleItinerarySelect = useCallback((itinerary) => {
     if (fromStop && toStop) {
       addFrequentRoute(
         { stopId: fromStop.stop_id, stopName: fromStop.stop_name, stopCode: fromStop.stop_code },
         { stopId: toStop.stop_id,   stopName: toStop.stop_name,   stopCode: toStop.stop_code }
       );
     }
-    const params = new URLSearchParams();
-    if (fromStop) params.set('fromStop', fromStop.stop_id);
-    if (toStop)   params.set('toStop',   toStop.stop_id);
-    navigate(`/journey/trip/${journey.tripId}?${params.toString()}`);
+    const firstTransit = itinerary.transitLegs?.[0];
+    if (firstTransit?.tripId) {
+      const params = new URLSearchParams();
+      if (fromStop) params.set('fromStop', fromStop.stop_id);
+      if (toStop)   params.set('toStop',   toStop.stop_id);
+      navigate(`/journey/trip/${firstTransit.tripId}?${params.toString()}`);
+    }
   }, [navigate, fromStop, toStop, addFrequentRoute]);
 
   const isSameStop = fromStop && toStop && fromStop.stop_id === toStop.stop_id;
   const canSearch  = fromStop && toStop && !isSameStop &&
     (searchMode === 'departNow' || (searchMode === 'arriveBy' && arriveByTime));
-  const journeys   = data?.journeys || [];
+  const itineraries = data?.itineraries || [];
 
   // Orario default per il time picker: ora corrente + 30 min
   const defaultArriveBy = (() => {
@@ -488,59 +604,64 @@ export default function JourneyPlanner() {
           />
         )}
 
-        {searched && !isLoading && !isError && journeys.length === 0 && (
+        {searched && !isLoading && !isError && itineraries.length === 0 && (
           <div className="empty-state">
             <div className="empty-state-icon">🔍</div>
-            <p className="empty-state-title">Nessuna corsa trovata</p>
+            <p className="empty-state-title">Nessun itinerario trovato</p>
             <p className="empty-state-msg">
-              {data?.message || `Nessuna corsa diretta ${searchMode === 'arriveBy' ? `prima delle ${arriveByTime}` : 'nei prossimi 120 minuti'}`}
+              {searchMode === 'arriveBy'
+                ? `Nessuna corsa per arrivare prima delle ${arriveByTime}`
+                : 'Nessuna corsa nei prossimi 120 minuti'}
+            </p>
+            <p className="empty-state-msg" style={{ marginTop: 6, fontSize: 13, color: 'var(--color-text-3)' }}>
+              Il pianificatore cerca tragitti con al massimo 1–2 cambi su linee GTT.
             </p>
           </div>
         )}
 
-        {searched && !isLoading && !isError && journeys.length > 0 && (
+        {searched && !isLoading && !isError && itineraries.length > 0 && (
           <div>
-            {/* Soluzioni consigliate */}
-            <SolutionsSummary
-              journeys={journeys}
-              solutions={data?.solutions}
-              onSelect={handleJourneySelect}
-            />
+            {/* Banner fallback */}
+            {data?.fallback && (
+              <div style={{
+                margin: '0 var(--space-md) var(--space-sm)',
+                padding: '10px 14px',
+                background: 'var(--color-warning-bg, #fff8e1)',
+                border: '1px solid var(--color-warning, #f59e0b)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 13,
+                color: 'var(--color-text-2)',
+              }}>
+                ⚠️ Pianificatore non disponibile · corse dirette senza cambio
+              </div>
+            )}
 
-            {/* Lista completa */}
+            {/* Lista itinerari */}
             <div className="section-label">
-              {journeys.length} {journeys.length === 1 ? 'corsa disponibile' : 'corse disponibili'}
-              {searchMode === 'arriveBy' && <span style={{ fontWeight: 400, color: 'var(--color-text-3)' }}> · prima delle {arriveByTime}</span>}
+              {itineraries.length} {itineraries.length === 1 ? 'itinerario disponibile' : 'itinerari disponibili'}
+              {searchMode === 'arriveBy' && (
+                <span style={{ fontWeight: 400, color: 'var(--color-text-3)' }}>
+                  {' '}· prima delle {arriveByTime}
+                </span>
+              )}
             </div>
 
             <div className="list-card" style={{ margin: '0 var(--space-md)' }}>
-              {journeys.map(j => {
-                const isSolution = j.solutionTags?.length > 0;
-                return (
-                  <JourneyCard
-                    key={`${j.tripId}-${j.departureTime}`}
-                    journey={j}
-                    highlighted={isSolution}
-                    onClick={() => handleJourneySelect(j)}
-                  />
-                );
-              })}
+              {itineraries.map((itin, idx) => (
+                <ItineraryCard
+                  key={idx}
+                  itinerary={itin}
+                  onClick={() => handleItinerarySelect(itin)}
+                />
+              ))}
             </div>
 
-            {/* Stato realtime */}
+            {/* Stato fonte dati */}
             <div className="rt-status-bar" style={{ margin: 'var(--space-sm) var(--space-md) var(--space-md)' }}>
-              {data.realtimeStatus === 'active' && (
-                <><span className="realtime-dot" /><span>Orari in tempo reale</span></>
-              )}
-              {data.realtimeStatus === 'empty' && (
-                <span>✓ Feed attivo · nessun ritardo segnalato</span>
-              )}
-              {data.realtimeStatus === 'unreachable' && (
-                <span>⚠️ Feed non raggiungibile · orari programmati</span>
-              )}
-              {(!data.realtimeStatus || data.realtimeStatus === 'disabled') && (
-                <span>📅 Orari programmati ufficiali</span>
-              )}
+              {data.source === 'otp'
+                ? <><span className="realtime-dot" /><span>Itinerari con cambi · OpenTripPlanner</span></>
+                : <span>📅 Corse dirette · orari programmati</span>
+              }
               {data.generatedAt && (
                 <span style={{ marginLeft: 'auto' }}>
                   {new Date(data.generatedAt).toLocaleTimeString('it-IT', {
