@@ -24,6 +24,11 @@ const caches = {
     stdTTL: parseInt(process.env.CACHE_TTL_NEARBY) || 15,
     checkperiod: 5,
   }),
+  // Journey planner: i risultati cambiano ogni minuto, TTL 60s
+  journey: new NodeCache({
+    stdTTL: parseInt(process.env.CACHE_TTL_JOURNEY) || 60,
+    checkperiod: 15,
+  }),
 };
 
 /**

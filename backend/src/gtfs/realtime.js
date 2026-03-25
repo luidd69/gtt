@@ -197,8 +197,59 @@ async function getServiceAlerts() {
   };
 }
 
+/**
+ * Posizione realtime di un veicolo per un trip_id specifico.
+ * Usata da journey.js per il dettaglio corsa.
+ *
+ * @param {string} tripId
+ * @returns {Object|null} Dati posizione veicolo o { available: false }
+ */
+async function getVehiclePosition(tripId) {
+  if (!URLS.vehiclePosition) return { available: false };
+
+  const feed = await fetchFeed('vehiclePosition');
+  if (!feed) return { available: false };
+
+  const STATUS_LABELS = {
+    0: 'In avvicinamento',
+    1: 'Fermo alla fermata',
+    2: 'In transito',
+  };
+
+  const OCCUPANCY_LABELS = {
+    0: 'Vuoto', 1: 'Molti posti liberi', 2: 'Posti liberi',
+    3: 'In piedi', 4: 'Solo in piedi', 5: 'Pieno', 6: 'Non accetta passeggeri',
+  };
+
+  for (const entity of feed.entity) {
+    if (!entity.vehicle) continue;
+    const tid = entity.vehicle.trip?.tripId;
+    if (tid !== tripId) continue;
+
+    const v = entity.vehicle;
+    if (!v.position?.latitude) return { available: false };
+
+    return {
+      available: true,
+      lat: v.position.latitude,
+      lon: v.position.longitude,
+      bearing: v.position.bearing ?? null,
+      speed: v.position.speed != null ? Math.round(v.position.speed * 3.6) : null,
+      currentStopId: v.stopId || null,
+      currentStatus: STATUS_LABELS[v.currentStatus] || 'In transito',
+      occupancy: OCCUPANCY_LABELS[v.occupancyStatus] || null,
+      vehicleLabel: v.vehicle?.label || null,
+      timestamp: v.timestamp
+        ? new Date(Number(v.timestamp) * 1000).toISOString()
+        : null,
+    };
+  }
+
+  return { available: false };
+}
+
 function isRealtimeEnabled() {
   return !!URLS.tripUpdate;
 }
 
-module.exports = { getRealtimeDelays, getServiceAlerts, isRealtimeEnabled };
+module.exports = { getRealtimeDelays, getServiceAlerts, getVehiclePosition, isRealtimeEnabled };

@@ -10,9 +10,11 @@ import useFavoritesStore from '../store/favoritesStore';
 import StopCard from '../components/StopCard';
 
 const QUICK_ACTIONS = [
+  { to: '/journey',   icon: '🗺️', label: 'Cerca tragitto' },
   { to: '/search',    icon: '🔍', label: 'Cerca fermata' },
-  { to: '/metro',     icon: '🚇', label: 'Metro' },
   { to: '/nearby',    icon: '📍', label: 'Fermate vicine' },
+  { to: '/metro',     icon: '🚇', label: 'Metro' },
+  { to: '/map',       icon: '📡', label: 'Mappa veicoli' },
   { to: '/favorites', icon: '⭐', label: 'Preferiti' },
 ];
 

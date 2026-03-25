@@ -16,52 +16,13 @@ const { withCache } = require('../utils/cache');
 const {
   gtfsTimeToSeconds,
   nowInSeconds,
-  todayGtfsDate,
-  todayWeekdayField,
   secondsToHHMM,
-  minutesUntil,
 } = require('../utils/time');
 const { getRealtimeDelays, isRealtimeEnabled } = require('../gtfs/realtime');
+const { getActiveServiceIds } = require('../utils/serviceCalendar');
 
 const MAX_ARRIVALS = 10;
 const LOOKAHEAD_MINUTES = 90; // mostra arrivi entro 90 minuti
-
-/**
- * Trova i service_id validi per oggi.
- * Combina calendar (regolare) + calendar_dates (eccezioni).
- */
-function getActiveServiceIds(db) {
-  const today = todayGtfsDate();
-  const weekday = todayWeekdayField();
-
-  // Servizi attivi per il giorno della settimana
-  const regularServices = db.prepare(`
-    SELECT service_id FROM calendar
-    WHERE ${weekday} = 1
-      AND start_date <= ?
-      AND end_date >= ?
-  `).all(today, today).map(r => r.service_id);
-
-  // Eccezioni: aggiunte (exception_type=1) per oggi
-  const addedServices = db.prepare(`
-    SELECT service_id FROM calendar_dates
-    WHERE date = ? AND exception_type = 1
-  `).all(today).map(r => r.service_id);
-
-  // Eccezioni: rimosse (exception_type=2) per oggi
-  const removedServices = new Set(
-    db.prepare(`
-      SELECT service_id FROM calendar_dates
-      WHERE date = ? AND exception_type = 2
-    `).all(today).map(r => r.service_id)
-  );
-
-  // Unione: regolari + aggiunte - rimosse
-  const active = new Set([...regularServices, ...addedServices]);
-  for (const removed of removedServices) active.delete(removed);
-
-  return Array.from(active);
-}
 
 /**
  * GET /api/arrivals/:stopId

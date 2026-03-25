@@ -51,18 +51,14 @@ const TABS = [
     ),
   },
   {
-    to: '/metro',
-    label: 'Metro',
+    to: '/journey',
+    label: 'Tragitto',
     icon: (active) => (
-      <svg viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'}
-        stroke="currentColor" strokeWidth={active ? 0 : 1.8}>
-        <rect x="3" y="3" width="18" height="14" rx="3"
-          fill={active ? 'currentColor' : 'none'}
-          stroke="currentColor" strokeWidth={active ? 0 : 1.8}/>
-        <circle cx="8" cy="10" r="1.5" fill={active ? 'white' : 'currentColor'}/>
-        <circle cx="16" cy="10" r="1.5" fill={active ? 'white' : 'currentColor'}/>
-        <path d="M8 17l-2 4M16 17l2 4M10 17h4" strokeLinecap="round"
-          stroke="currentColor" strokeWidth="1.8" fill="none"/>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth={active ? 2.2 : 1.8} strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="5" cy="6" r="2" fill={active ? 'currentColor' : 'none'} />
+        <circle cx="19" cy="18" r="2" fill={active ? 'currentColor' : 'none'} />
+        <path d="M5 8v3a4 4 0 004 4h6a4 4 0 014 4" />
       </svg>
     ),
   },

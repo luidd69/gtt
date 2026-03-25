@@ -8,6 +8,8 @@ import Favorites from './pages/Favorites';
 import StopDetail from './pages/StopDetail';
 import LineDetail from './pages/LineDetail';
 import VehicleMap from './pages/VehicleMap';
+import JourneyPlanner from './pages/JourneyPlanner';
+import TripDetail from './pages/TripDetail';
 
 export default function App() {
   return (
@@ -22,6 +24,8 @@ export default function App() {
           <Route path="/stops/:stopId" element={<StopDetail />} />
           <Route path="/lines/:routeId" element={<LineDetail />} />
           <Route path="/map" element={<VehicleMap />} />
+          <Route path="/journey" element={<JourneyPlanner />} />
+          <Route path="/journey/trip/:tripId" element={<TripDetail />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

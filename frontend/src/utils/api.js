@@ -56,3 +56,13 @@ export const getGtfsInfo = () =>
 
 export const getHealth = () =>
   client.get('/health').then(r => r.data);
+
+// ─── Journey ──────────────────────────────────────────────────────────────────
+
+export const searchJourney = (fromStop, toStop, lookahead = 120) =>
+  client.get('/journey/search', { params: { from: fromStop, to: toStop, lookahead } })
+    .then(r => r.data);
+
+export const getTripDetail = (tripId, fromStop, toStop) =>
+  client.get(`/journey/trip/${tripId}`, { params: { fromStop, toStop } })
+    .then(r => r.data);

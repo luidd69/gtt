@@ -668,6 +668,106 @@ body {
   100% { background-position: -200% 0; }
 }
 
+/* ─── Trip Timeline ──────────────────────────────────────── */
+
+.timeline-container {
+  padding: 0 var(--space-md);
+}
+
+.timeline-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  min-height: 48px;
+  position: relative;
+}
+
+/* Linea verticale di connessione tra i nodi */
+.timeline-item:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--space-md) + 6px); /* centro del nodo (14px / 2 - 1) */
+  top: 20px;
+  bottom: -6px;
+  width: 2px;
+  background: var(--color-border);
+}
+
+.timeline-item.status-passed::before {
+  background: var(--color-text-3);
+}
+
+/* Nodo circolare della fermata */
+.timeline-node {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--color-border);
+  background: var(--color-bg-card);
+  flex-shrink: 0;
+  margin-top: 4px;
+  z-index: 1;
+  position: relative;
+}
+
+.timeline-node.status-passed {
+  background: var(--color-text-3);
+  border-color: var(--color-text-3);
+}
+
+.timeline-node.status-current {
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  box-shadow: 0 0 0 4px var(--color-brand-light);
+}
+
+.timeline-node.status-upcoming {
+  background: var(--color-bg-card);
+  border-color: var(--color-brand);
+}
+
+.timeline-node.is-from {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  width: 16px;
+  height: 16px;
+  margin-top: 3px;
+}
+
+.timeline-node.is-to {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  width: 16px;
+  height: 16px;
+  margin-top: 3px;
+}
+
+/* ─── Stop Picker ────────────────────────────────────────── */
+
+.stop-picker-dropdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card), 0 8px 24px rgba(0,0,0,0.12);
+  z-index: 50;
+  max-height: 240px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  /* Separatore items */
+  overflow: hidden;
+}
+
+/* Sovrascrive overflow: hidden per permettere scroll */
+.stop-picker-dropdown {
+  overflow-y: auto;
+}
+
 /* ─── Utilities ──────────────────────────────────────────── */
 .flex-row  { display: flex; align-items: center; }
 .flex-col  { display: flex; flex-direction: column; }
