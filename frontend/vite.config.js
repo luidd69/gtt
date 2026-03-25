@@ -13,6 +13,10 @@ export default defineConfig({
       },
     },
   },
+  preview: {
+    port: 5173,
+    allowedHosts: ['85-25-172-74.sslip.io'],
+  },
   build: {
     outDir: 'dist',
     sourcemap: false,

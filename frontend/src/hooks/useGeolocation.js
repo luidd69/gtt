@@ -13,6 +13,16 @@ export function useGeolocation() {
   });
 
   const requestLocation = useCallback(() => {
+    // I browser moderni bloccano la geolocalizzazione su HTTP (non-localhost).
+    // window.isSecureContext è false su http:// con IP/dominio esterno.
+    if (!window.isSecureContext) {
+      setState(s => ({
+        ...s,
+        error: 'HTTPS_REQUIRED',
+      }));
+      return;
+    }
+
     if (!navigator.geolocation) {
       setState(s => ({
         ...s,

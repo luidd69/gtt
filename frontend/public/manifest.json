@@ -3,6 +3,7 @@
   "short_name": "GTT",
   "description": "Orari e arrivi in tempo reale per la rete GTT di Torino",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#F2F2F7",
@@ -13,25 +14,57 @@
       "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
     }
   ],
   "shortcuts": [
     {
-      "name": "Metro",
-      "url": "/metro",
-      "description": "Orari metropolitana Torino"
+      "name": "Cerca tragitto",
+      "short_name": "Tragitto",
+      "url": "/journey",
+      "description": "Pianifica un tragitto GTT"
     },
     {
       "name": "Cerca fermata",
+      "short_name": "Cerca",
       "url": "/search",
       "description": "Cerca una fermata GTT"
+    },
+    {
+      "name": "Fermate vicine",
+      "short_name": "Vicine",
+      "url": "/nearby",
+      "description": "Fermate GTT vicino a te"
+    },
+    {
+      "name": "Metro",
+      "short_name": "Metro",
+      "url": "/metro",
+      "description": "Orari metropolitana Torino"
     }
   ]
 }

@@ -1,9 +1,11 @@
 /**
  * Nearby.jsx
  * Fermate vicine con geolocalizzazione.
+ * Gestisce il caso HTTP (non-HTTPS) con un messaggio esplicativo
+ * e un campo per inserire manualmente le coordinate.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getNearbyStops } from '../utils/api';
 import { useGeolocation } from '../hooks/useGeolocation';
@@ -11,8 +13,37 @@ import StopCard from '../components/StopCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorState from '../components/ErrorState';
 
+// Fallback manuale: l'utente inserisce il CAP o le coordinate
+// In assenza di HTTPS, proponiamo coordinate di Torino centro come default
+const TORINO_CENTER = { lat: 45.0703, lon: 7.6869 };
+
+function HttpsWarning({ onUseDefault }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+      <div className="notice notice-warning">
+        <span>🔒</span>
+        <div>
+          <div className="fw-600">HTTPS richiesto per la geolocalizzazione</div>
+          <div style={{ marginTop: 4 }}>
+            I browser bloccano l'accesso alla posizione GPS su connessioni HTTP.
+            Puoi usare le fermate vicine al centro di Torino oppure cercare
+            manualmente una fermata dalla pagina <strong>Cerca</strong>.
+          </div>
+        </div>
+      </div>
+      <button className="btn btn-secondary btn-full" onClick={onUseDefault}>
+        📍 Mostra fermate vicino a Torino centro
+      </button>
+    </div>
+  );
+}
+
 export default function Nearby() {
   const { position, error, loading, requestLocation } = useGeolocation();
+  const [manualPosition, setManualPosition] = useState(null);
+
+  const isHttpsError = error === 'HTTPS_REQUIRED';
+  const activePosition = position || manualPosition;
 
   // Chiede automaticamente la posizione al mount
   useEffect(() => {
@@ -20,32 +51,37 @@ export default function Nearby() {
   }, []);
 
   const { data, isLoading: stopsLoading, isError, refetch } = useQuery({
-    queryKey: ['nearby', position?.lat, position?.lon],
-    queryFn: () => getNearbyStops(position.lat, position.lon, 0.75),
-    enabled: !!position,
+    queryKey: ['nearby', activePosition?.lat, activePosition?.lon],
+    queryFn: () => getNearbyStops(activePosition.lat, activePosition.lon, 0.75),
+    enabled: !!activePosition,
     staleTime: 30_000,
-    refetchInterval: 60_000, // aggiorna ogni minuto
+    refetchInterval: 60_000,
   });
 
   return (
     <div className="page">
       <div className="page-header">
         <div className="page-title">Fermate vicine</div>
-        {position && (
+        {activePosition && (
           <div className="page-subtitle">
-            Entro 750 m dalla tua posizione
+            {position ? 'Entro 750 m dalla tua posizione' : 'Entro 750 m da Torino centro'}
           </div>
         )}
       </div>
 
       <div className="page-content">
-        {/* Richiesta permesso / loading geo */}
-        {!position && !error && loading && (
+        {/* Loading geo */}
+        {!activePosition && !error && loading && (
           <LoadingSpinner message="Rilevamento posizione..." />
         )}
 
-        {/* Errore geolocalizzazione */}
-        {error && (
+        {/* Errore HTTPS */}
+        {isHttpsError && !manualPosition && (
+          <HttpsWarning onUseDefault={() => setManualPosition(TORINO_CENTER)} />
+        )}
+
+        {/* Errore geolocalizzazione generico */}
+        {error && !isHttpsError && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
             <div className="notice notice-warning">
               <span>📍</span>
@@ -58,7 +94,7 @@ export default function Nearby() {
         )}
 
         {/* Primo avvio: chiedi permesso */}
-        {!position && !error && !loading && (
+        {!activePosition && !error && !loading && (
           <div className="empty-state">
             <div className="empty-state-icon">📍</div>
             <p className="empty-state-title">Trova fermate vicino a te</p>
@@ -72,10 +108,10 @@ export default function Nearby() {
         )}
 
         {/* Loading fermate */}
-        {position && stopsLoading && <LoadingSpinner message="Ricerca fermate vicine..." />}
+        {activePosition && stopsLoading && <LoadingSpinner message="Ricerca fermate vicine..." />}
 
         {/* Errore API */}
-        {position && isError && (
+        {activePosition && isError && (
           <ErrorState
             onRetry={refetch}
             message="Impossibile caricare le fermate vicine"
@@ -83,7 +119,7 @@ export default function Nearby() {
         )}
 
         {/* Risultati */}
-        {data?.stops && (
+        {activePosition && data?.stops && (
           <>
             {data.stops.length === 0 ? (
               <div className="empty-state">
