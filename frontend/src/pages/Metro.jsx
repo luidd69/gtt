@@ -480,11 +480,14 @@ function MetroJourneyCard({ journey, metroColor, onViewTrip }) {
 
 // ─── Tab Percorso ─────────────────────────────────────────────────────────────
 
-function MetroPercorso({ allStops, metroColor }) {
+function MetroPercorso({ stopsForward, stopsReverse, metroColor }) {
   const navigate = useNavigate();
   const [fromStop, setFromStop] = useState(null);
   const [toStop,   setToStop]   = useState(null);
   const [searched, setSearched] = useState(false);
+
+  // Lista completa per lookup (ricerca per stop_id)
+  const allStops = stopsForward;
 
   const { data, isLoading, isError, error, refetch } = useMetroJourney(
     fromStop?.stop_id,
@@ -525,7 +528,7 @@ function MetroPercorso({ allStops, metroColor }) {
             label="Partenza"
             value={fromStop}
             onChange={s => { setFromStop(s); setSearched(false); }}
-            allStops={allStops}
+            allStops={stopsForward}
             color={metroColor}
             excludeStopId={toStop?.stop_id}
           />
@@ -549,7 +552,7 @@ function MetroPercorso({ allStops, metroColor }) {
             label="Arrivo"
             value={toStop}
             onChange={s => { setToStop(s); setSearched(false); }}
-            allStops={allStops}
+            allStops={stopsReverse}
             color={metroColor}
             excludeStopId={fromStop?.stop_id}
           />
@@ -647,26 +650,33 @@ export default function Metro() {
     staleTime: 0,
   });
 
-  // Raccoglie tutte le stazioni metro da tutte le direzioni (dedup per stop_id)
-  const allMetroStops = (() => {
-    if (!data?.available) return [];
-    // Usa la prima direzione (direction_id=0) che ha le fermate in ordine
-    // stop_sequence crescente dal backend. Ordina esplicitamente per sicurezza.
-    const seen = new Set();
-    const stops = [];
-    for (const route of data.routes) {
-      const firstDir = route.directions[0];
-      if (!firstDir) continue;
-      for (const stop of firstDir.stops) {
-        if (!seen.has(stop.stop_id)) {
-          seen.add(stop.stop_id);
-          stops.push(stop);
-        }
-      }
-    }
-    // Ordina per stop_sequence reale (il backend lo include già, ma lo forziamo)
-    return stops.sort((a, b) => (a.stop_sequence || 0) - (b.stop_sequence || 0));
+  // Raccoglie tutte le stazioni metro:
+  // - stopsForward: direzione 0 (es. Fermi → Lingotto), ordine reale
+  // - stopsReverse: direzione 1 (ordine invertito, es. Lingotto → Fermi)
+  const { stopsForward, stopsReverse } = (() => {
+    if (!data?.available) return { stopsForward: [], stopsReverse: [] };
+    const route = data.routes[0];
+    if (!route) return { stopsForward: [], stopsReverse: [] };
+
+    const extractStops = (dir) => {
+      if (!dir) return [];
+      const seen = new Set();
+      return dir.stops
+        .filter(s => { if (seen.has(s.stop_id)) return false; seen.add(s.stop_id); return true; })
+        .sort((a, b) => (a.stop_sequence || 0) - (b.stop_sequence || 0));
+    };
+
+    const fwd = extractStops(route.directions[0]);
+    // Direzione 1 (opposta) — se assente, inverti la direzione 0
+    const rev = route.directions[1]
+      ? extractStops(route.directions[1])
+      : [...fwd].reverse();
+
+    return { stopsForward: fwd, stopsReverse: rev };
   })();
+
+  // Lista piatta unica (per compatibilità con altri usi)
+  const allMetroStops = stopsForward;
 
   const metroColor = data?.routes?.[0]?.color || '#E84B24';
 
@@ -761,7 +771,11 @@ export default function Metro() {
 
         {/* Tab: Percorso */}
         {data?.available && activeTab === 'percorso' && (
-          <MetroPercorso allStops={allMetroStops} metroColor={metroColor} />
+          <MetroPercorso
+            stopsForward={stopsForward}
+            stopsReverse={stopsReverse}
+            metroColor={metroColor}
+          />
         )}
       </div>
     </div>
