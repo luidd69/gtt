@@ -77,9 +77,15 @@ router.get('/metro', (req, res) => {
       // Per ogni direzione, fermate in ordine
       const directionStops = [];
       for (const dir of directions) {
+        // Prende la corsa con il maggior numero di fermate per quella direzione:
+        // garantisce di ottenere il percorso completo (non una corsa parziale)
         const sampleTrip = db.prepare(`
-          SELECT trip_id FROM trips
-          WHERE route_id = ? AND direction_id = ?
+          SELECT t.trip_id, COUNT(st.stop_id) AS stop_count
+          FROM trips t
+          JOIN stop_times st ON st.trip_id = t.trip_id
+          WHERE t.route_id = ? AND t.direction_id = ?
+          GROUP BY t.trip_id
+          ORDER BY stop_count DESC
           LIMIT 1
         `).get(route.route_id, dir.direction_id);
 

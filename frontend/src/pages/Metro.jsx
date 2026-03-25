@@ -644,16 +644,14 @@ export default function Metro() {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['metro'],
     queryFn: getMetroInfo,
-    staleTime: 10 * 60_000,
+    staleTime: 0,
   });
 
   // Raccoglie tutte le stazioni metro da tutte le direzioni (dedup per stop_id)
   const allMetroStops = (() => {
     if (!data?.available) return [];
-    // Usa la prima direzione (direction_id=0) che già ha le fermate
-    // in ordine di stop_sequence dal backend — nessun riordino alfabetico.
-    // Le fermate della direzione opposta sono le stesse in senso inverso,
-    // quindi basta la prima direzione per coprire tutte le stazioni.
+    // Usa la prima direzione (direction_id=0) che ha le fermate in ordine
+    // stop_sequence crescente dal backend. Ordina esplicitamente per sicurezza.
     const seen = new Set();
     const stops = [];
     for (const route of data.routes) {
@@ -666,7 +664,8 @@ export default function Metro() {
         }
       }
     }
-    return stops;
+    // Ordina per stop_sequence reale (il backend lo include già, ma lo forziamo)
+    return stops.sort((a, b) => (a.stop_sequence || 0) - (b.stop_sequence || 0));
   })();
 
   const metroColor = data?.routes?.[0]?.color || '#E84B24';
