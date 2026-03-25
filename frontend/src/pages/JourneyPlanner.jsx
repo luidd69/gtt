@@ -529,12 +529,16 @@ export default function JourneyPlanner() {
 
             {/* Stato realtime */}
             <div className="rt-status-bar" style={{ margin: 'var(--space-sm) var(--space-md) var(--space-md)' }}>
-              {data.realtimeAvailable ? (
-                <>
-                  <span className="realtime-dot" />
-                  <span>Orari in tempo reale</span>
-                </>
-              ) : (
+              {data.realtimeStatus === 'active' && (
+                <><span className="realtime-dot" /><span>Orari in tempo reale</span></>
+              )}
+              {data.realtimeStatus === 'empty' && (
+                <span>✓ Feed attivo · nessun ritardo segnalato</span>
+              )}
+              {data.realtimeStatus === 'unreachable' && (
+                <span>⚠️ Feed non raggiungibile · orari programmati</span>
+              )}
+              {(!data.realtimeStatus || data.realtimeStatus === 'disabled') && (
                 <span>📅 Orari programmati ufficiali</span>
               )}
               {data.generatedAt && (

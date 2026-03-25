@@ -59,7 +59,7 @@ function ArrivalsSection({ stopId }) {
   if (isLoading) return <SkeletonList rows={5} />;
   if (isError) return <ErrorState onRetry={refetch} message="Impossibile caricare gli arrivi" />;
 
-  const { arrivals = [], realtimeAvailable, realtimeNote, message } = data || {};
+  const { arrivals = [], realtimeAvailable, realtimeStatus, realtimeNote, message } = data || {};
 
   const updatedTime = dataUpdatedAt
     ? new Date(dataUpdatedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -93,18 +93,25 @@ function ArrivalsSection({ stopId }) {
         </div>
       )}
 
-      {/* Timestamp aggiornamento */}
+      {/* Barra stato realtime */}
       <div className="rt-status-bar" style={{ margin: 'var(--space-sm) var(--space-md) 0' }}>
-        {realtimeAvailable ? (
+        {realtimeStatus === 'active' && (
           <>
             <span className="realtime-dot" />
             <span>Dati in tempo reale</span>
           </>
-        ) : (
-          <span>📅 Orari programmati</span>
+        )}
+        {realtimeStatus === 'empty' && (
+          <span>✓ Feed attivo · veicoli in orario o servizio non ancora avviato</span>
+        )}
+        {realtimeStatus === 'unreachable' && (
+          <span>⚠️ Feed temporaneamente non raggiungibile · orari programmati</span>
+        )}
+        {(!realtimeStatus || realtimeStatus === 'disabled') && (
+          <span>📅 Orari programmati ufficiali</span>
         )}
         {updatedTime && (
-          <span style={{ marginLeft: 'auto' }}>Aggiornato {updatedTime}</span>
+          <span style={{ marginLeft: 'auto' }}>{updatedTime}</span>
         )}
       </div>
     </div>

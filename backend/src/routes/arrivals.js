@@ -18,7 +18,7 @@ const {
   nowInSeconds,
   secondsToHHMM,
 } = require('../utils/time');
-const { getRealtimeDelays, isRealtimeEnabled } = require('../gtfs/realtime');
+const { getRealtimeDelays, isRealtimeEnabled, checkRealtimeHealth } = require('../gtfs/realtime');
 const { getActiveServiceIds } = require('../utils/serviceCalendar');
 
 const MAX_ARRIVALS = 10;
@@ -114,9 +114,20 @@ router.get('/:stopId', async (req, res) => {
 
       // Arricchimento GTFS-RT (se disponibile)
       const tripIds = [...new Set(rows.map(r => r.trip_id))];
-      const realtimeDelays = isRealtimeEnabled()
-        ? await getRealtimeDelays(tripIds)
-        : {};
+      let realtimeDelays = {};
+      let realtimeStatus = 'disabled'; // 'disabled' | 'empty' | 'active' | 'unreachable'
+
+      if (isRealtimeEnabled()) {
+        realtimeDelays = await getRealtimeDelays(tripIds);
+        const hasAnyDelay = Object.keys(realtimeDelays).length > 0;
+        if (hasAnyDelay) {
+          realtimeStatus = 'active';
+        } else {
+          // Controlla se il feed è vuoto o irraggiungibile
+          const health = await checkRealtimeHealth();
+          realtimeStatus = health.status; // 'empty' o 'unreachable'
+        }
+      }
 
       // Costruisce risposta finale
       const arrivals = rows.slice(0, limit).map(row => {
@@ -157,15 +168,20 @@ router.get('/:stopId', async (req, res) => {
         };
       });
 
+      // Determina il messaggio corretto per il frontend in base allo stato
+      const realtimeNotes = {
+        disabled:    'Aggiornamenti in tempo reale non configurati. Orari programmati ufficiali GTT.',
+        unreachable: 'Feed realtime temporaneamente non raggiungibile. Orari programmati.',
+        empty:       'Nessun aggiornamento attivo al momento (veicoli in orario o servizio non ancora avviato).',
+        active:      null, // nessuna nota — tutto OK
+      };
+
       return {
         stopId,
         arrivals,
-        realtimeAvailable: isRealtimeEnabled(),
-        // Informa il frontend se il realtime è abilitato ma non disponibile
-        realtimeNote: !isRealtimeEnabled()
-          ? 'Il servizio di aggiornamenti in tempo reale non è disponibile per GTT. ' +
-            'Gli orari mostrati sono quelli ufficiali programmati.'
-          : null,
+        realtimeAvailable: realtimeStatus === 'active',
+        realtimeStatus,   // 'disabled' | 'empty' | 'active' | 'unreachable'
+        realtimeNote: realtimeNotes[realtimeStatus],
         generatedAt: new Date().toISOString(),
       };
     });

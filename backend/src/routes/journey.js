@@ -30,6 +30,7 @@ const {
   getRealtimeDelays,
   getVehiclePosition,
   isRealtimeEnabled,
+  checkRealtimeHealth,
 } = require('../gtfs/realtime');
 const { getActiveServiceIds } = require('../utils/serviceCalendar');
 
@@ -240,9 +241,19 @@ router.get('/search', async (req, res) => {
 
       // Arricchimento GTFS-RT: ritardi per tutte le corse trovate
       const tripIds = rows.map(r => r.trip_id);
-      const realtimeDelays = isRealtimeEnabled()
-        ? await getRealtimeDelays(tripIds)
-        : {};
+      let realtimeDelays = {};
+      let realtimeStatus = 'disabled';
+
+      if (isRealtimeEnabled()) {
+        realtimeDelays = await getRealtimeDelays(tripIds);
+        const hasAny = Object.keys(realtimeDelays).length > 0;
+        if (hasAny) {
+          realtimeStatus = 'active';
+        } else {
+          const health = await checkRealtimeHealth();
+          realtimeStatus = health.status;
+        }
+      }
 
       const journeys = rows.map(row => {
         const { cnt: intermediateStops } = countStmt.get(row.trip_id, row.from_seq, row.to_seq);
@@ -298,7 +309,8 @@ router.get('/search', async (req, res) => {
         journeys,
         solutions,
         searchMode:        arriveBy ? 'arriveBy' : 'departNow',
-        realtimeAvailable: isRealtimeEnabled(),
+        realtimeAvailable: realtimeStatus === 'active',
+        realtimeStatus,
         lookaheadMinutes:  lookahead,
         generatedAt:       new Date().toISOString(),
       };

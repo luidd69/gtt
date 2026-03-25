@@ -7,7 +7,7 @@ const express = require('express');
 const router = express.Router();
 const { getDb } = require('../db/database');
 const { withCache } = require('../utils/cache');
-const { getServiceAlerts, isRealtimeEnabled } = require('../gtfs/realtime');
+const { getServiceAlerts, isRealtimeEnabled, checkRealtimeHealth } = require('../gtfs/realtime');
 const axios = require('axios');
 const GtfsRealtimeBindings = require('gtfs-realtime-bindings');
 
@@ -268,6 +268,56 @@ router.get('/vehicles', async (req, res) => {
   } catch (err) {
     console.error('[service/vehicles]', err.message);
     res.status(500).json({ error: 'Errore nel recupero posizioni veicoli', available: false, vehicles: [] });
+  }
+});
+
+/**
+ * GET /api/service/realtime-health
+ * Diagnostica dello stato dei feed GTFS-RT.
+ * Utile per debug e monitoraggio.
+ */
+router.get('/realtime-health', async (req, res) => {
+  try {
+    const axios = require('axios');
+    const GtfsRealtimeBindings = require('gtfs-realtime-bindings');
+
+    const urls = {
+      tripUpdate:      process.env.GTFS_REALTIME_URL,
+      vehiclePosition: process.env.GTFS_REALTIME_VP_URL,
+      alerts:          process.env.GTFS_REALTIME_ALERTS_URL,
+    };
+
+    const results = {};
+    for (const [name, url] of Object.entries(urls)) {
+      if (!url) {
+        results[name] = { status: 'not_configured' };
+        continue;
+      }
+      try {
+        const r = await axios.get(url, { responseType: 'arraybuffer', timeout: 8000 });
+        const feed = GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(
+          new Uint8Array(r.data)
+        );
+        results[name] = {
+          status: feed.entity?.length > 0 ? 'active' : 'empty',
+          entityCount: feed.entity?.length ?? 0,
+          bytes: r.data.byteLength,
+          feedTimestamp: feed.header?.timestamp
+            ? new Date(Number(feed.header.timestamp) * 1000).toISOString()
+            : null,
+        };
+      } catch (e) {
+        results[name] = { status: 'error', error: e.message };
+      }
+    }
+
+    res.json({
+      checkedAt: new Date().toISOString(),
+      feeds: results,
+    });
+  } catch (err) {
+    console.error('[service/realtime-health]', err);
+    res.status(500).json({ error: 'Errore nella diagnostica realtime' });
   }
 });
 

@@ -65,8 +65,15 @@ async function fetchFeed(type) {
  * Ritardi realtime per un set di trip_id.
  * Combina trip_update + vehicle_position.
  *
+ * Strategia delay selection:
+ *   - Scorre tutti gli stopTimeUpdate della corsa
+ *   - Usa l'ultimo delay trovato (l'aggiornamento più recente nella sequenza)
+ *   - Preferisce departure.delay su arrival.delay
+ *   - Se il feed di vehicle_position riporta un currentStopSequence,
+ *     prende il delay dello stop più vicino a quello corrente
+ *
  * @param {string[]} tripIds
- * @returns {Object} { trip_id: { delay, status } }
+ * @returns {Object} { trip_id: { delay, status, vehicleStatus?, occupancy? } }
  */
 async function getRealtimeDelays(tripIds) {
   if (!tripIds.length || !URLS.tripUpdate) return {};
@@ -79,29 +86,60 @@ async function getRealtimeDelays(tripIds) {
   const delays = {};
   const tripSet = new Set(tripIds);
 
-  // Trip Updates → ritardi per stop
+  // Mappa tripId → currentStopSequence dal vehicle position feed
+  // (usata per scegliere il delay più rilevante)
+  const currentSeqByTrip = {};
+  if (vpFeed) {
+    for (const entity of vpFeed.entity) {
+      if (!entity.vehicle) continue;
+      const tid = entity.vehicle.trip?.tripId;
+      if (!tid || !tripSet.has(tid)) continue;
+      const seq = entity.vehicle.currentStopSequence;
+      if (seq != null) currentSeqByTrip[tid] = seq;
+    }
+  }
+
+  // Trip Updates → delay per ogni corsa richiesta
   if (tuFeed) {
     for (const entity of tuFeed.entity) {
       if (!entity.tripUpdate) continue;
       const tid = entity.tripUpdate.trip?.tripId;
       if (!tid || !tripSet.has(tid)) continue;
 
-      // Cerca il primo stopTimeUpdate con delay
-      for (const stu of entity.tripUpdate.stopTimeUpdate || []) {
-        const delay = stu.departure?.delay ?? stu.arrival?.delay;
-        if (delay != null) {
-          delays[tid] = {
-            delay,               // secondi (positivo = in ritardo)
-            delayMin: Math.round(delay / 60),
-            status: delay > 60 ? 'delayed' : delay < -60 ? 'early' : 'on_time',
-          };
-          break;
+      const updates = entity.tripUpdate.stopTimeUpdate || [];
+      if (!updates.length) continue;
+
+      const currentSeq = currentSeqByTrip[tid];
+      let bestDelay = null;
+
+      if (currentSeq != null) {
+        // Strategia 1: prende il delay dello stop con sequence >= currentSeq (prossimo stop)
+        const next = updates.find(u => (u.stopSequence ?? 0) >= currentSeq);
+        const candidate = next || updates[updates.length - 1];
+        const d = candidate?.departure?.delay ?? candidate?.arrival?.delay;
+        if (d != null) bestDelay = d;
+      }
+
+      if (bestDelay === null) {
+        // Strategia 2: prende l'ultimo aggiornamento disponibile
+        // (più vicino alla posizione attuale del veicolo rispetto al primo)
+        for (let i = updates.length - 1; i >= 0; i--) {
+          const d = updates[i].departure?.delay ?? updates[i].arrival?.delay;
+          if (d != null) { bestDelay = d; break; }
         }
+      }
+
+      if (bestDelay !== null) {
+        delays[tid] = {
+          delay:    bestDelay,
+          delayMin: Math.round(bestDelay / 60),
+          status:   bestDelay > 60 ? 'delayed' : bestDelay < -60 ? 'early' : 'on_time',
+        };
       }
     }
   }
 
-  // Vehicle Positions → aggiunge stato corrente (in transito / fermo)
+  // Vehicle Positions → stato corrente del veicolo
   if (vpFeed) {
     for (const entity of vpFeed.entity) {
       if (!entity.vehicle) continue;
@@ -109,17 +147,44 @@ async function getRealtimeDelays(tripIds) {
       if (!tid || !tripSet.has(tid)) continue;
 
       if (!delays[tid]) {
+        // Veicolo presente nel feed VP ma senza trip update → on time
         delays[tid] = { delay: 0, delayMin: 0, status: 'on_time' };
       }
 
       const cs = entity.vehicle.currentStatus;
-      // 0=INCOMING, 1=STOPPED, 2=IN_TRANSIT
+      // 0=INCOMING_AT, 1=STOPPED_AT, 2=IN_TRANSIT_TO
       delays[tid].vehicleStatus = cs === 1 ? 'stopped_at' : 'in_transit';
       delays[tid].occupancy = entity.vehicle.occupancyStatus;
     }
   }
 
   return delays;
+}
+
+/**
+ * Controlla se il feed realtime è vivo e contiene dati.
+ * Distingue tra:
+ *   - 'disabled'   → URL non configurata
+ *   - 'empty'      → feed raggiungibile ma 0 entity (nessun veicolo aggiornato)
+ *   - 'active'     → feed con dati
+ *   - 'unreachable'→ feed non raggiungibile
+ */
+async function checkRealtimeHealth() {
+  if (!URLS.tripUpdate) return { status: 'disabled' };
+
+  const feed = await fetchFeed('tripUpdate');
+  if (!feed) return { status: 'unreachable' };
+
+  const entityCount = feed.entity?.length ?? 0;
+  const timestamp = feed.header?.timestamp
+    ? new Date(Number(feed.header.timestamp) * 1000).toISOString()
+    : null;
+
+  return {
+    status: entityCount > 0 ? 'active' : 'empty',
+    entityCount,
+    timestamp,
+  };
 }
 
 /**
@@ -252,4 +317,10 @@ function isRealtimeEnabled() {
   return !!URLS.tripUpdate;
 }
 
-module.exports = { getRealtimeDelays, getServiceAlerts, getVehiclePosition, isRealtimeEnabled };
+module.exports = {
+  getRealtimeDelays,
+  getServiceAlerts,
+  getVehiclePosition,
+  isRealtimeEnabled,
+  checkRealtimeHealth,
+};
