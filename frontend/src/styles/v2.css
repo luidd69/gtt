@@ -758,3 +758,43 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ─── Entrance Animations (staggered) ─────────────────────── */
+@keyframes v2-slide-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.v2-animate-in {
+  animation: v2-slide-up 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.v2-animate-in-d1 { animation-delay: 0.05s; }
+.v2-animate-in-d2 { animation-delay: 0.10s; }
+.v2-animate-in-d3 { animation-delay: 0.15s; }
+.v2-animate-in-d4 { animation-delay: 0.20s; }
+.v2-animate-in-d5 { animation-delay: 0.25s; }
+.v2-animate-in-d6 { animation-delay: 0.30s; }
+
+/* ─── Itinerary Summary Card ───────────────────────────────── */
+.v2-itin-summary {
+  background: var(--v2-surface-1);
+  border-radius: var(--v2-r-lg);
+  border: 1px solid var(--v2-border);
+  border-left: 3px solid var(--v2-brand);
+  padding: 16px;
+  box-shadow: var(--v2-shadow-sm);
+}
+
+/* ─── Map: highlighted stop marker ────────────────────────── */
+.v2-map-highlight-marker {
+  width: 20px;
+  height: 20px;
+  background: var(--v2-brand, #FF3D20);
+  border: 3px solid #fff;
+  border-radius: 50%;
+  animation: v2-map-pulse 1.5s ease-out infinite;
+}
+@keyframes v2-map-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 61, 32, 0.5); }
+  70%  { box-shadow: 0 0 0 12px rgba(255, 61, 32, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 61, 32, 0); }
+}

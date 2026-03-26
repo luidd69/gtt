@@ -84,9 +84,7 @@ async function getOtpArrivals(stopId, count = 15, timeRange = 5400) {
   }
 
   try {
-    // Nuovo formato ID OTP (aggiornamento infrastruttura 5T 2026):
-    // stop_code zero-paddato a 6 cifre con prefisso "3:" (es. "253" → "3:000253")
-    const otpStopId = `3:${String(stopId).padStart(6, '0')}`;
+    const otpStopId = `gtt:${stopId}`;
 
     const response = await axios.post(OTP_URL, {
       query: GRAPHQL_QUERY,
@@ -121,8 +119,8 @@ async function getOtpArrivals(stopId, count = 15, timeRange = 5400) {
       .filter(t => t.realtimeState !== 'CANCELLED' || true) // teniamo le cancellate, le marcheremo
       .map(t => {
         const route    = t.trip?.route || {};
-        const tripId   = t.trip?.gtfsId?.replace(/^3:/, '') || null;
-        const routeId  = route.gtfsId?.replace(/^3:/, '')  || null;
+        const tripId   = t.trip?.gtfsId?.replace(/^gtt:/, '') || null;
+        const routeId  = route.gtfsId?.replace(/^gtt:/, '')  || null;
 
         const serviceDay        = Number(t.serviceDay || 0);
         const scheduledDepSec   = Number(t.scheduledDeparture || 0);
@@ -216,7 +214,7 @@ async function checkOtpHealth() {
   const start = Date.now();
   try {
     const r = await axios.post(OTP_URL, {
-      query: '{ stops(ids:["3:000039"]) { id } }',
+      query: '{ stops(ids:["gtt:39"]) { id } }',
     }, {
       timeout: 5_000,
       headers: { 'Content-Type': 'application/json' },
@@ -264,15 +262,24 @@ query OtpPlan(
         duration
         realTime
         distance
+        intermediateStops { name gtfsId }
         from { name lat lon stop { gtfsId name } }
         to   { name lat lon stop { gtfsId name } }
         route { gtfsId shortName longName color textColor mode }
-        trip  { gtfsId }
+        trip  { gtfsId tripHeadsign }
       }
     }
   }
 }
 `;
+
+/**
+ * Rimuove prefissi OTP (gtt:, 3:, 4:, ecc.) dagli ID per compatibilità col DB GTFS.
+ */
+function stripOtpPrefix(id) {
+  if (!id) return null;
+  return id.replace(/^\w+:/, '');
+}
 
 /**
  * Converte ms Unix → "HH:MM" nel fuso orario italiano (CET/CEST).
@@ -343,11 +350,11 @@ async function getOtpPlan(fromLat, fromLon, toLat, toLon, options = {}) {
           distanceM:   Math.round(leg.distance || 0),
           from: {
             name:   leg.from?.stop?.name || leg.from?.name || '',
-            stopId: leg.from?.stop?.gtfsId?.replace(/^gtt:/, '') || null,
+            stopId: stripOtpPrefix(leg.from?.stop?.gtfsId),
           },
           to: {
             name:   leg.to?.stop?.name || leg.to?.name || '',
-            stopId: leg.to?.stop?.gtfsId?.replace(/^gtt:/, '') || null,
+            stopId: stripOtpPrefix(leg.to?.stop?.gtfsId),
           },
           route: (isWalk || !r) ? null : {
             shortName: r.shortName || '',
@@ -356,7 +363,9 @@ async function getOtpPlan(fromLat, fromLon, toLat, toLon, options = {}) {
             textColor: r.textColor ? `#${r.textColor}` : null,
             type:      OTP_MODE_TO_ROUTE_TYPE[r.mode] ?? 3,
           },
-          tripId: leg.trip?.gtfsId?.replace(/^gtt:/, '') || null,
+          headsign:   leg.trip?.tripHeadsign || null,
+          stopsCount: (leg.intermediateStops?.length ?? 0) + 1,
+          tripId: stripOtpPrefix(leg.trip?.gtfsId),
         };
       });
 

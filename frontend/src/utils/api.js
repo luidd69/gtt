@@ -80,7 +80,35 @@ export const searchMetroJourney = (fromStop, toStop, lookahead = 90) =>
   client.get('/journey/metro', { params: { from: fromStop, to: toStop, lookahead } })
     .then(r => r.data);
 
-export const planJourney = (fromStopId, toStopId, { arriveBy } = {}) =>
-  client.get('/journey/plan', {
-    params: { from: fromStopId, to: toStopId, ...(arriveBy ? { arriveBy } : {}) },
-  }).then(r => r.data);
+/**
+ * Pianifica un itinerario.
+ * from/to: { stopId, stopName } oppure { stopId: null, lat, lon, stopName }
+ * options: { arriveBy: 'HH:MM', departAt: 'HH:MM' }
+ */
+export const planJourney = (from, to, { arriveBy, departAt } = {}) => {
+  const params = {};
+  if (from?.stopId) {
+    params.from = from.stopId;
+  } else if (from?.lat != null) {
+    params.fromLat = from.lat;
+    params.fromLon = from.lon;
+    params.fromName = from.stopName;
+  } else {
+    params.from = from; // compatibilità backward (stringa)
+  }
+  if (to?.stopId) {
+    params.to = to.stopId;
+  } else if (to?.lat != null) {
+    params.toLat = to.lat;
+    params.toLon = to.lon;
+    params.toName = to.stopName;
+  } else {
+    params.to = to; // compatibilità backward
+  }
+  if (arriveBy) params.arriveBy = arriveBy;
+  if (departAt) params.departAt = departAt;
+  return client.get('/journey/plan', { params }).then(r => r.data);
+};
+
+export const searchPlaces = (q, limit = 5) =>
+  client.get('/stops/places', { params: { q, limit } }).then(r => r.data);

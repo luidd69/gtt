@@ -5,7 +5,8 @@ import { useEffect } from 'react';
 import HomeV2          from './pages/v2/HomeV2';
 import SearchV2        from './pages/v2/SearchV2';
 import StopDetailV2    from './pages/v2/StopDetailV2';
-import JourneyPlannerV2 from './pages/v2/JourneyPlannerV2';
+import JourneyPlannerV2    from './pages/v2/JourneyPlannerV2';
+import ItineraryDetailV2  from './pages/v2/ItineraryDetailV2';
 import BottomNavV2     from './components/v2/BottomNavV2';
 
 // Pagine condivise (nessuna versione V2 dedicata)
@@ -49,8 +50,9 @@ export default function App() {
           <Route path="/stops/:stopId"    element={<StopRedirect />} />
 
           {/* Journey planner */}
-          <Route path="/v2/journey" element={<JourneyPlannerV2 />} />
-          <Route path="/journey"    element={<Navigate to="/v2/journey" replace />} />
+          <Route path="/v2/journey"           element={<JourneyPlannerV2 />} />
+          <Route path="/v2/journey/itinerary" element={<ItineraryDetailV2 />} />
+          <Route path="/journey"              element={<Navigate to="/v2/journey" replace />} />
 
           {/* Pagine condivise */}
           <Route path="/metro"               element={<Metro />} />

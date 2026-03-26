@@ -10,13 +10,53 @@ import { getServiceStatus, getGtfsInfo } from '../../utils/api';
 import useFavoritesStore from '../../store/favoritesStore';
 import StopCardV2 from '../../components/v2/StopCardV2';
 
+// SVG icons per le quick actions
+const IconRoute = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/>
+    <path d="M6 17V9a3 3 0 0 1 3-3h6"/>
+    <path d="M15 3l3 2-3 2"/>
+  </svg>
+);
+const IconStop = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="3"/>
+    <path d="M3 9h18M9 21V9"/>
+  </svg>
+);
+const IconNear = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7z"/>
+    <circle cx="12" cy="9" r="2.5"/>
+  </svg>
+);
+const IconMetro = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="5" width="18" height="14" rx="3"/>
+    <path d="M8 5v14M16 5v14M3 12h18"/>
+    <circle cx="7" cy="17" r="1.2" fill="currentColor" stroke="none"/>
+    <circle cx="17" cy="17" r="1.2" fill="currentColor" stroke="none"/>
+  </svg>
+);
+const IconMap = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/>
+    <path d="M9 3v15M15 6v15"/>
+  </svg>
+);
+const IconStar = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+  </svg>
+);
+
 const QUICK_ACTIONS = [
-  { to: '/v2/journey', icon: '🗺️', label: 'Tragitto'       },
-  { to: '/v2/search',  icon: '🔍', label: 'Fermate'         },
-  { to: '/nearby',     icon: '📍', label: 'Vicine'           },
-  { to: '/metro',      icon: '🚇', label: 'Metro'            },
-  { to: '/map',        icon: '📡', label: 'Mappa live'       },
-  { to: '/favorites',  icon: '⭐', label: 'Preferiti'        },
+  { to: '/v2/journey', Icon: IconRoute, label: 'Tragitto'  },
+  { to: '/v2/search',  Icon: IconStop,  label: 'Fermate'   },
+  { to: '/nearby',     Icon: IconNear,  label: 'Vicine'    },
+  { to: '/metro',      Icon: IconMetro, label: 'Metro'     },
+  { to: '/map',        Icon: IconMap,   label: 'Mappa live'},
+  { to: '/favorites',  Icon: IconStar,  label: 'Preferiti' },
 ];
 
 function ServiceBanner() {
@@ -176,7 +216,9 @@ export default function HomeV2() {
           </div>
           <div style={{ flex: 1 }}>
             <div className="v2-title" style={{ fontSize: 19 }}>GTT Torino</div>
-            <div className="v2-subtitle">Orari e arrivi in tempo reale</div>
+            <div className="v2-subtitle">
+              {new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })}
+            </div>
           </div>
           <button
             onClick={() => window.close()}
@@ -217,9 +259,14 @@ export default function HomeV2() {
             gap: 10,
             padding: '0 var(--v2-sp-md)',
           }}>
-            {QUICK_ACTIONS.map(a => (
-              <Link key={a.to} to={a.to} className="v2-tile" style={{ textDecoration: 'none' }}>
-                <span className="v2-tile-icon">{a.icon}</span>
+            {QUICK_ACTIONS.map((a, i) => (
+              <Link
+                key={a.to}
+                to={a.to}
+                className={`v2-tile v2-animate-in v2-animate-in-d${Math.min(i + 1, 6)}`}
+                style={{ textDecoration: 'none' }}
+              >
+                <span className="v2-tile-icon"><a.Icon /></span>
                 <span className="v2-tile-label">{a.label}</span>
               </Link>
             ))}

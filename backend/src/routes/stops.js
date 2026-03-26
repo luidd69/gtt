@@ -5,6 +5,7 @@
 
 const express = require('express');
 const router = express.Router();
+const axios = require('axios');
 const { getDb } = require('../db/database');
 const { withCache } = require('../utils/cache');
 const { haversineDistance, getBoundingBox } = require('../utils/geo');
@@ -182,6 +183,50 @@ router.get('/nearby', (req, res) => {
     console.error('[stops/nearby]', err);
     res.status(500).json({ error: 'Errore nel recupero fermate vicine' });
   });
+});
+
+/**
+ * GET /api/stops/places?q=<query>&limit=5
+ * Geocoding indirizzi e luoghi di Torino via Nominatim (OpenStreetMap).
+ * Ritorna luoghi con lat/lon per il journey planner.
+ */
+router.get('/places', async (req, res) => {
+  const q = (req.query.q || '').trim();
+  const limit = Math.min(parseInt(req.query.limit) || 5, 10);
+
+  if (q.length < 3) return res.json({ places: [] });
+
+  try {
+    const response = await axios.get('https://nominatim.openstreetmap.org/search', {
+      params: {
+        q:            `${q}, Torino`,
+        format:       'json',
+        limit,
+        countrycodes: 'it',
+        viewbox:      '7.40,45.20,7.82,44.95',
+        bounded:      1,
+        'accept-language': 'it',
+      },
+      timeout: 5_000,
+      headers: {
+        'User-Agent': 'GTT-WebApp/1.0 (Torino public transit app)',
+        'Accept':     'application/json',
+      },
+    });
+
+    const places = (response.data || []).map(p => ({
+      name: p.display_name.split(',').slice(0, 2).join(',').trim(),
+      fullName: p.display_name,
+      lat: parseFloat(p.lat),
+      lon: parseFloat(p.lon),
+      type: p.type || p.class,
+    }));
+
+    res.json({ places });
+  } catch (err) {
+    console.warn('[stops/places] Nominatim error:', err.message);
+    res.json({ places: [] });
+  }
 });
 
 /**

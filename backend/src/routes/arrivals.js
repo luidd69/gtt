@@ -33,9 +33,14 @@ const { getActiveServiceIds } = require('../utils/serviceCalendar');
 const MAX_ARRIVALS    = 20;
 const NOON_SECONDS    = 43200; // 12:00 in secondi dalla mezzanotte
 
-// Calcola i minuti fino a mezzogiorno del giorno dopo
-function minutesUntilNoonTomorrow() {
-  return Math.ceil((86400 + NOON_SECONDS - nowInSeconds()) / 60);
+// Calcola i minuti fino al prossimo mezzogiorno (oggi se siamo prima delle 12, domani se dopo).
+// Garantisce una finestra ≤ 24 ore — evita finestre da 35+ ore dopo mezzanotte.
+function minutesUntilNextNoon() {
+  const nowSec = nowInSeconds();
+  const secsUntilNoon = nowSec < NOON_SECONDS
+    ? NOON_SECONDS - nowSec               // prima di mezzogiorno: mezzogiorno di oggi
+    : 86400 + NOON_SECONDS - nowSec;      // dopo mezzogiorno: mezzogiorno di domani
+  return Math.ceil(secsUntilNoon / 60);
 }
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
@@ -174,9 +179,11 @@ async function getStaticArrivals(stopId, limit, lookahead) {
     timeZone: 'Europe/Rome', day: '2-digit', month: '2-digit',
   }).format(tomorrowDate);
 
-  const nextDayRows = tomorrowServiceIds.length
+  // Aggiungi corse del giorno dopo solo se la finestra supera mezzanotte
+  const windowEndSec = nowSec + lookahead * 60;
+  const nextDayRows = (tomorrowServiceIds.length && windowEndSec > 86400)
     ? db.prepare(STOP_TIMES_QUERY(tomorrowServiceIds.map(() => '?').join(',')))
-        .all(stopId, ...tomorrowServiceIds, 0, NOON_SECONDS, limit)
+        .all(stopId, ...tomorrowServiceIds, 0, Math.min(windowEndSec - 86400, NOON_SECONDS), limit)
     : [];
 
   if (!todayRows.length && !nextDayRows.length) {
@@ -370,8 +377,8 @@ async function getScheduledForWindow(stopId, limit, dateStr, timeStr) {
 router.get('/:stopId', async (req, res) => {
   const { stopId } = req.params;
   const limit     = Math.min(parseInt(req.query.limit)    || MAX_ARRIVALS, 30);
-  // Lookahead fino a mezzogiorno di domani (copre le corse notturne e mattutine)
-  const maxLookahead = minutesUntilNoonTomorrow();
+  // Lookahead fino al prossimo mezzogiorno (≤24h): evita finestre eccessive dopo mezzanotte
+  const maxLookahead = minutesUntilNextNoon();
   const lookahead = Math.min(parseInt(req.query.lookahead) || maxLookahead, maxLookahead);
 
   // ── Modalità ricerca per data/ora specifica ──────────────────────────────

@@ -914,53 +914,97 @@ router.get('/metro', async (req, res) => {
  * Fallback su corse dirette GTFS se OTP non è raggiungibile.
  *
  * Query params:
- *   from      - stop_id fermata di partenza (obbligatorio)
- *   to        - stop_id fermata di arrivo (obbligatorio)
+ *   from      - stop_id fermata di partenza (alternativo a fromLat/fromLon)
+ *   to        - stop_id fermata di arrivo   (alternativo a toLat/toLon)
+ *   fromLat, fromLon, fromName - coordinate luogo di partenza
+ *   toLat, toLon, toName       - coordinate luogo di arrivo
  *   arriveBy  - orario di arrivo desiderato HH:MM (opzionale)
+ *   departAt  - orario di partenza desiderato HH:MM (opzionale)
  */
 router.get('/plan', async (req, res) => {
-  const { from: fromStop, to: toStop, arriveBy } = req.query;
+  const {
+    from: fromStop, to: toStop,
+    fromLat, fromLon, fromName,
+    toLat, toLon, toName,
+    arriveBy, departAt,
+  } = req.query;
 
-  if (!fromStop || !toStop) {
+  const hasFrom = fromStop || (fromLat && fromLon);
+  const hasTo   = toStop   || (toLat   && toLon);
+
+  if (!hasFrom || !hasTo) {
     return res.status(400).json({ error: 'Parametri from e to obbligatori' });
-  }
-  if (fromStop === toStop) {
-    return res.status(400).json({ error: 'Le fermate di partenza e arrivo devono essere diverse' });
   }
 
   try {
     const db = getDb();
 
-    const fromStopRow = db.prepare(
-      'SELECT stop_id, stop_name, stop_code, stop_lat, stop_lon FROM stops WHERE stop_id = ?'
-    ).get(fromStop);
-    const toStopRow = db.prepare(
-      'SELECT stop_id, stop_name, stop_code, stop_lat, stop_lon FROM stops WHERE stop_id = ?'
-    ).get(toStop);
+    // Risolvi coordinate e info per partenza
+    let fromInfo, fromStopInfo;
+    if (fromStop) {
+      const row = db.prepare(
+        'SELECT stop_id, stop_name, stop_code, stop_lat, stop_lon FROM stops WHERE stop_id = ?'
+      ).get(fromStop);
+      if (!row) return res.status(404).json({ error: 'Fermata di partenza non trovata' });
+      fromInfo     = { lat: row.stop_lat, lon: row.stop_lon };
+      fromStopInfo = { stopId: row.stop_id, stopName: row.stop_name, stopCode: row.stop_code };
+    } else {
+      fromInfo     = { lat: parseFloat(fromLat), lon: parseFloat(fromLon) };
+      fromStopInfo = { stopId: null, stopName: fromName || 'Partenza', stopCode: null };
+    }
 
-    if (!fromStopRow) return res.status(404).json({ error: 'Fermata di partenza non trovata' });
-    if (!toStopRow)   return res.status(404).json({ error: 'Fermata di arrivo non trovata' });
-
-    const fromStopInfo = { stopId: fromStopRow.stop_id, stopName: fromStopRow.stop_name, stopCode: fromStopRow.stop_code };
-    const toStopInfo   = { stopId: toStopRow.stop_id,   stopName: toStopRow.stop_name,   stopCode: toStopRow.stop_code };
+    // Risolvi coordinate e info per arrivo
+    let toInfo, toStopInfo;
+    if (toStop) {
+      const row = db.prepare(
+        'SELECT stop_id, stop_name, stop_code, stop_lat, stop_lon FROM stops WHERE stop_id = ?'
+      ).get(toStop);
+      if (!row) return res.status(404).json({ error: 'Fermata di arrivo non trovata' });
+      toInfo     = { lat: row.stop_lat, lon: row.stop_lon };
+      toStopInfo = { stopId: row.stop_id, stopName: row.stop_name, stopCode: row.stop_code };
+    } else {
+      toInfo     = { lat: parseFloat(toLat), lon: parseFloat(toLon) };
+      toStopInfo = { stopId: null, stopName: toName || 'Arrivo', stopCode: null };
+    }
 
     // Calcola data/ora per OTP (fuso italiano)
-    let otpDate, otpTime;
-    if (arriveBy) {
+    let otpDate, otpTime, isArriveBy = false;
+    if (arriveBy || departAt) {
       const p = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
       const v = Object.fromEntries(p.map(x => [x.type, x.value]));
       otpDate = `${v.year}-${v.month}-${v.day}`;
-      otpTime = `${arriveBy}:00`;
+      if (arriveBy) { otpTime = `${arriveBy}:00`; isArriveBy = true; }
+      else          { otpTime = `${departAt}:00`;  isArriveBy = false; }
     }
 
     const otpResult = await getOtpPlan(
-      fromStopRow.stop_lat, fromStopRow.stop_lon,
-      toStopRow.stop_lat,   toStopRow.stop_lon,
-      { numItineraries: 5, date: otpDate, time: otpTime, arriveBy: !!arriveBy }
+      fromInfo.lat, fromInfo.lon,
+      toInfo.lat,   toInfo.lon,
+      { numItineraries: 5, date: otpDate, time: otpTime, arriveBy: isArriveBy }
     );
 
     // OTP disponibile
     if (otpResult !== null) {
+      // Arricchisce ogni leg.from/to con stopCode e stopName dal DB locale
+      const stopCodeStmt = db.prepare('SELECT stop_code, stop_name FROM stops WHERE stop_id = ? LIMIT 1');
+      for (const itin of otpResult) {
+        for (const leg of itin.legs) {
+          if (leg.from.stopId) {
+            const r = stopCodeStmt.get(leg.from.stopId);
+            if (r) {
+              leg.from.stopCode = r.stop_code || null;
+              leg.from.name     = r.stop_name || leg.from.name;
+            }
+          }
+          if (leg.to.stopId) {
+            const r = stopCodeStmt.get(leg.to.stopId);
+            if (r) {
+              leg.to.stopCode = r.stop_code || null;
+              leg.to.name     = r.stop_name || leg.to.name;
+            }
+          }
+        }
+      }
       return res.json({
         fromStop:    fromStopInfo,
         toStop:      toStopInfo,
@@ -971,11 +1015,11 @@ router.get('/plan', async (req, res) => {
       });
     }
 
-    // ── Fallback GTFS diretto ──────────────────────────────────────────────────
+    // ── Fallback GTFS diretto (solo se si dispone di stop_id) ─────────────────
     const activeServiceIds = getActiveServiceIds(db);
     let itineraries = [];
 
-    if (activeServiceIds.length) {
+    if (activeServiceIds.length && fromStop && toStop) {
       const placeholders = activeServiceIds.map(() => '?').join(',');
       const nowSec = nowInSeconds();
       const lookahead = 120;
@@ -1048,8 +1092,8 @@ router.get('/plan', async (req, res) => {
           durationMin,
           realTime:    false,
           distanceM:   0,
-          from: { name: fromStopRow.stop_name, stopId: fromStopRow.stop_id },
-          to:   { name: toStopRow.stop_name,   stopId: toStopRow.stop_id   },
+          from: { name: fromStopInfo.stopName, stopId: fromStopInfo.stopId, stopCode: fromStopInfo.stopCode ?? null },
+          to:   { name: toStopInfo.stopName,   stopId: toStopInfo.stopId,   stopCode: toStopInfo.stopCode   ?? null },
           route: {
             shortName: row.route_short_name || '',
             longName:  row.route_long_name  || null,
