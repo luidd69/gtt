@@ -79,13 +79,14 @@ export function truncateHeadsign(headsign, max = 25) {
  */
 export function formatStopName(rawName) {
   if (!rawName) return '';
-  const match = rawName.match(/Fermata \d+ - (.+)$/i);
+  const str = typeof rawName === 'string' ? rawName : String(rawName);
+  const match = str.match(/Fermata \d+ - (.+)$/i);
   if (match) {
     return match[1]
       .toLowerCase()
       .replace(/\b\w/g, c => c.toUpperCase());
   }
-  return rawName;
+  return str;
 }
 
 /**
@@ -93,6 +94,8 @@ export function formatStopName(rawName) {
  * Es: "Fermata 252 - PORTA NUOVA" → "252"
  */
 export function extractStopCode(rawName, fallback = '') {
-  const match = rawName?.match(/Fermata (\d+)/i);
+  if (!rawName) return fallback;
+  const str = typeof rawName === 'string' ? rawName : String(rawName);
+  const match = str.match(/Fermata (\d+)/i);
   return match ? match[1] : fallback;
 }

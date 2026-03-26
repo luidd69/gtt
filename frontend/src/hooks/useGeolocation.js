@@ -1,15 +1,38 @@
 /**
  * useGeolocation.js
  * Hook per la geolocalizzazione con gestione stato ed errori.
+ * Fallback automatico a geolocalizzazione IP quando il GPS non è disponibile.
  */
 
 import { useState, useCallback } from 'react';
 
+const TORINO_CENTER = { lat: 45.0703, lon: 7.6869 };
+
+async function getIpPosition() {
+  try {
+    const res  = await fetch('https://ipapi.co/json/');
+    if (!res.ok) throw new Error('IP API error');
+    const data = await res.json();
+    if (!data.latitude || !data.longitude) throw new Error('No coordinates');
+    return {
+      position:      { lat: data.latitude, lon: data.longitude, accuracy: 5000 },
+      estimatedCity: data.city || 'posizione stimata',
+    };
+  } catch {
+    return {
+      position:      { ...TORINO_CENTER, accuracy: 5000 },
+      estimatedCity: 'Torino (posizione di default)',
+    };
+  }
+}
+
 export function useGeolocation() {
   const [state, setState] = useState({
-    position: null,
-    error: null,
-    loading: false,
+    position:      null,
+    error:         null,
+    loading:       false,
+    isEstimated:   false,
+    estimatedCity: null,
   });
 
   const requestLocation = useCallback(() => {
@@ -31,7 +54,7 @@ export function useGeolocation() {
       return;
     }
 
-    setState(s => ({ ...s, loading: true, error: null }));
+    setState(s => ({ ...s, loading: true, error: null, isEstimated: false, estimatedCity: null }));
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -41,26 +64,22 @@ export function useGeolocation() {
             lon: pos.coords.longitude,
             accuracy: pos.coords.accuracy,
           },
-          error: null,
-          loading: false,
+          error:         null,
+          loading:       false,
+          isEstimated:   false,
+          estimatedCity: null,
         });
       },
-      (err) => {
-        let msg;
-        switch (err.code) {
-          case err.PERMISSION_DENIED:
-            msg = 'Permesso di geolocalizzazione negato. Abilitalo nelle impostazioni del browser.';
-            break;
-          case err.POSITION_UNAVAILABLE:
-            msg = 'Posizione non disponibile. Prova in un luogo con copertura GPS.';
-            break;
-          case err.TIMEOUT:
-            msg = 'Timeout nella rilevazione della posizione. Riprova.';
-            break;
-          default:
-            msg = 'Errore nel rilevare la posizione.';
-        }
-        setState({ position: null, error: msg, loading: false });
+      async (err) => {
+        // GPS non disponibile — prova fallback IP
+        const { position, estimatedCity } = await getIpPosition();
+        setState({
+          position,
+          error:         null,
+          loading:       false,
+          isEstimated:   true,
+          estimatedCity,
+        });
       },
       {
         enableHighAccuracy: false,

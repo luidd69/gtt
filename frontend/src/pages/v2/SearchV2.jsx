@@ -82,6 +82,7 @@ function StopsResults({ stops, loading, query }) {
         <StopCardV2
           key={s.stop_id}
           stop={{ stopId: s.stop_id, stopName: s.stop_name, stopDesc: s.stop_desc }}
+          routes={s.routes}
         />
       ))}
     </div>
@@ -152,10 +153,18 @@ function LinesExplorerV2({ query = '' }) {
 
 const TABS = ['Fermate', 'Linee'];
 
+// Chiave sessionStorage — si azzera alla chiusura del browser/tab
+const SS_QUERY = 'gtt_search_query';
+const SS_TAB   = 'gtt_search_tab';
+
 export default function SearchV2() {
-  const [query, setQuery] = useState('');
-  const [activeTab, setActiveTab] = useState(0);
+  const [query, setQuery] = useState(() => sessionStorage.getItem(SS_QUERY) ?? '');
+  const [activeTab, setActiveTab] = useState(() => Number(sessionStorage.getItem(SS_TAB) ?? 0));
   const debouncedQuery = useDebounce(query, 300);
+
+  // Persiste query e tab corrente nella sessione
+  useEffect(() => { sessionStorage.setItem(SS_QUERY, query); }, [query]);
+  useEffect(() => { sessionStorage.setItem(SS_TAB, String(activeTab)); }, [activeTab]);
 
   const { data: stopsData, status: stopsStatus, isFetching } = useQuery({
     queryKey: ['search-stops', debouncedQuery],

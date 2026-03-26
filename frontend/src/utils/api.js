@@ -37,8 +37,12 @@ export const getLine = (routeId) =>
 
 // ─── Arrivals ─────────────────────────────────────────────────────────────────
 
-export const getArrivals = (stopId, limit = 10) =>
-  client.get(`/arrivals/${stopId}`, { params: { limit } }).then(r => r.data);
+export const getArrivals = (stopId, limit = 20, { date, time } = {}) => {
+  const params = { limit };
+  if (date) params.date = date;
+  if (time) params.time = time;
+  return client.get(`/arrivals/${stopId}`, { params }).then(r => r.data);
+};
 
 // ─── Service ─────────────────────────────────────────────────────────────────
 

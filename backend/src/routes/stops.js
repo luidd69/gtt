@@ -79,7 +79,31 @@ router.get('/search', (req, res) => {
       ...byName.filter(s => !seen.has(s.stop_id)),
     ].slice(0, MAX_SEARCH);
 
-    return { stops: merged };
+    // Arricchisce ogni fermata con le linee che la servono
+    const routesStmt = db.prepare(`
+      SELECT DISTINCT
+        r.route_id, r.route_short_name, r.route_type,
+        r.route_color, r.route_text_color
+      FROM routes r
+      JOIN trips t ON t.route_id = r.route_id
+      JOIN stop_times st ON st.trip_id = t.trip_id
+      WHERE st.stop_id = ?
+      ORDER BY r.route_type, r.route_short_name
+      LIMIT 8
+    `);
+
+    const stops = merged.map(s => ({
+      ...s,
+      routes: routesStmt.all(s.stop_id).map(r => ({
+        routeId:        r.route_id,
+        routeShortName: r.route_short_name,
+        routeType:      r.route_type,
+        routeColor:     r.route_color ? `#${r.route_color}` : null,
+        routeTextColor: r.route_text_color ? `#${r.route_text_color}` : null,
+      })),
+    }));
+
+    return { stops };
   });
 
   result.then(data => res.json(data)).catch(err => {

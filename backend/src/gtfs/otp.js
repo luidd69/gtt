@@ -84,10 +84,14 @@ async function getOtpArrivals(stopId, count = 15, timeRange = 5400) {
   }
 
   try {
+    // Nuovo formato ID OTP (aggiornamento infrastruttura 5T 2026):
+    // stop_code zero-paddato a 6 cifre con prefisso "3:" (es. "253" → "3:000253")
+    const otpStopId = `3:${String(stopId).padStart(6, '0')}`;
+
     const response = await axios.post(OTP_URL, {
       query: GRAPHQL_QUERY,
       variables: {
-        stopId:    `gtt:${stopId}`,
+        stopId:    otpStopId,
         count,
         timeRange,
       },
@@ -100,7 +104,8 @@ async function getOtpArrivals(stopId, count = 15, timeRange = 5400) {
     });
 
     const stops = response.data?.data?.stops;
-    if (!stops?.length) {
+    // OTP restituisce [null] se la fermata non esiste nel suo GTFS → trattalo come "non trovata"
+    if (!stops?.length || stops[0] === null) {
       stopCache.set(cacheKey, { data: null, fetchedAt: Date.now() });
       return null;
     }
@@ -108,13 +113,16 @@ async function getOtpArrivals(stopId, count = 15, timeRange = 5400) {
     const rawArrivals = stops[0]?.stoptimesWithoutPatterns || [];
     const nowSec = Date.now() / 1000;
 
+    // Data di oggi in Italia (YYYY-MM-DD) per rilevare corse del giorno dopo
+    const todayDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome' }).format(new Date());
+
     const arrivals = rawArrivals
       .filter(t => t.pickupType !== 1) // escludi fermate "no pickup" (solo discesa)
       .filter(t => t.realtimeState !== 'CANCELLED' || true) // teniamo le cancellate, le marcheremo
       .map(t => {
         const route    = t.trip?.route || {};
-        const tripId   = t.trip?.gtfsId?.replace(/^gtt:/, '') || null;
-        const routeId  = route.gtfsId?.replace(/^gtt:/, '')  || null;
+        const tripId   = t.trip?.gtfsId?.replace(/^3:/, '') || null;
+        const routeId  = route.gtfsId?.replace(/^3:/, '')  || null;
 
         const serviceDay        = Number(t.serviceDay || 0);
         const scheduledDepSec   = Number(t.scheduledDeparture || 0);
@@ -149,6 +157,15 @@ async function getOtpArrivals(stopId, count = 15, timeRange = 5400) {
         else if (delaySec < -60) status = 'early';
         else                     status = 'on_time';
 
+        // Corsa del giorno successivo: confronto data del serviceDay con oggi
+        const serviceDayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome' })
+          .format(new Date(serviceDay * 1000));
+        const isNextDay = serviceDayStr > todayDateStr;
+        const nextDayDate = isNextDay
+          ? new Intl.DateTimeFormat('it-IT', { timeZone: 'Europe/Rome', day: '2-digit', month: '2-digit' })
+              .format(new Date(serviceDay * 1000))
+          : null;
+
         return {
           tripId,
           routeId,
@@ -158,7 +175,7 @@ async function getOtpArrivals(stopId, count = 15, timeRange = 5400) {
           routeColor:      route.color    ? `#${route.color}`    : null,
           routeTextColor:  route.textColor ? `#${route.textColor}` : null,
           headsign:        t.headsign || '',
-          directionId:     null, // non esposto da OTP in questo query
+          directionId:     null,
           scheduledTime:   formatTime(scheduledDepSec),
           realtimeTime:    isRealtime ? formatTime(realtimeDepSec) : null,
           waitMinutes,
@@ -166,10 +183,18 @@ async function getOtpArrivals(stopId, count = 15, timeRange = 5400) {
           dataType:        isRealtime ? 'realtime' : 'scheduled',
           status,
           canceled:        isCanceled,
+          nextDay:         isNextDay,
+          nextDayDate,
         };
       })
       // Filtra passaggi già partiti — mostra solo presenti e futuri
       .filter(a => a.waitMinutes >= 0)
+      // Corse giorno dopo: solo fino a mezzogiorno (12:00)
+      .filter(a => {
+        if (!a.nextDay) return true;
+        const [h, m] = a.scheduledTime.split(':').map(Number);
+        return h * 60 + m <= 12 * 60;
+      })
       .slice(0, count);
 
     stopCache.set(cacheKey, { data: arrivals, fetchedAt: Date.now() });
@@ -191,7 +216,7 @@ async function checkOtpHealth() {
   const start = Date.now();
   try {
     const r = await axios.post(OTP_URL, {
-      query: '{ stops(ids:["gtt:1"]) { id } }',
+      query: '{ stops(ids:["3:000039"]) { id } }',
     }, {
       timeout: 5_000,
       headers: { 'Content-Type': 'application/json' },
@@ -250,11 +275,15 @@ query OtpPlan(
 `;
 
 /**
- * Converte ms Unix → "HH:MM"
+ * Converte ms Unix → "HH:MM" nel fuso orario italiano (CET/CEST).
  */
 function msToHHMM(ms) {
-  const d = new Date(Number(ms));
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Rome',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date(Number(ms)));
 }
 
 /**
@@ -271,9 +300,13 @@ async function getOtpPlan(fromLat, fromLon, toLat, toLon, options = {}) {
   const { numItineraries = 5, arriveBy = false } = options;
 
   const now  = new Date();
-  const date = options.date || now.toISOString().substring(0, 10);
-  const time = options.time ||
-    `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+  const italyFmt = (opts) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Rome', ...opts }).format(now);
+  const date = options.date || (() => {
+    const p = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now);
+    const v = Object.fromEntries(p.map(x => [x.type, x.value]));
+    return `${v.year}-${v.month}-${v.day}`;
+  })();
+  const time = options.time || italyFmt({ hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(/,\s*/, '');
 
   try {
     const response = await axios.post(OTP_URL, {

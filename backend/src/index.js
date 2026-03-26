@@ -16,6 +16,7 @@ const cron = require('node-cron');
 const { initSchema, isGtfsLoaded } = require('./db/database');
 const { loadGtfs } = require('./gtfs/loader');
 const { clearAll: clearCache } = require('./utils/cache');
+const mqttVehicles = require('./gtfs/mqtt');
 
 const stopsRouter = require('./routes/stops');
 const linesRouter = require('./routes/lines');
@@ -124,6 +125,9 @@ async function start() {
   });
 
   console.log(`[Server] Aggiornamento GTFS programmato: ${cronExpr}`);
+
+  // Avvia connessione MQTT per posizioni veicoli in tempo reale
+  mqttVehicles.connect();
 
   app.listen(PORT, () => {
     console.log(`[Server] ✅ In ascolto su http://localhost:${PORT}`);

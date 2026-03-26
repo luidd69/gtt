@@ -12,6 +12,7 @@ const { checkOtpHealth } = require('../gtfs/otp');
 const { getActiveServiceIds } = require('../utils/serviceCalendar');
 const axios = require('axios');
 const GtfsRealtimeBindings = require('gtfs-realtime-bindings');
+const mqttVehicles = require('../gtfs/mqtt');
 
 // Metro GTT — route_type = 1 (Subway)
 // La metro di Torino ha route_short_name "M1"
@@ -303,6 +304,22 @@ router.get('/vehicles', async (req, res) => {
   const url = process.env.GTFS_REALTIME_VP_URL;
 
   try {
+    // ── 0. MQTT live (sorgente primaria) ──────────────────────────────────────
+    if (mqttVehicles.isConnected()) {
+      const db = getDb();
+      const vehicles = mqttVehicles.getVehicles(db);
+      if (vehicles.length > 0) {
+        return res.json({
+          available: true,
+          count: vehicles.length,
+          vehicles,
+          source: 'mqtt',
+          lastMessageAt: mqttVehicles.lastMessageAt()
+            ? new Date(mqttVehicles.lastMessageAt()).toISOString() : null,
+        });
+      }
+    }
+
     // ── 1. Prova feed VP GTFS-RT ──────────────────────────────────────────────
     if (url) {
       const now = Date.now();
@@ -436,6 +453,13 @@ router.get('/realtime-health', async (req, res) => {
     res.json({
       checkedAt: new Date().toISOString(),
       primarySource: otpHealth.available ? 'otp' : 'gtfs-rt',
+      mqtt: {
+        url: 'wss://mapi.5t.torino.it/scre',
+        connected: mqttVehicles.isConnected(),
+        vehicleCount: mqttVehicles.vehicleCount(),
+        lastMessageAt: mqttVehicles.lastMessageAt()
+          ? new Date(mqttVehicles.lastMessageAt()).toISOString() : null,
+      },
       otp: {
         url: 'https://plan.muoversiatorino.it/otp/routers/mato/index/graphql',
         ...otpHealth,

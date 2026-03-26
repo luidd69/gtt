@@ -173,10 +173,10 @@ function NearbyStopCard({ stop }) {
 // ─── Pagina principale ───────────────────────────────────────────────────────
 
 export default function Nearby() {
-  const { position, error, loading, requestLocation } = useGeolocation();
+  const { position, error, loading, requestLocation, isEstimated, estimatedCity } = useGeolocation();
   const [manualPosition, setManualPosition] = useState(null);
 
-  const isHttpsError = error === 'HTTPS_REQUIRED';
+  const isHttpsError   = error === 'HTTPS_REQUIRED';
   const activePosition = position || manualPosition;
 
   useEffect(() => {
@@ -201,7 +201,9 @@ export default function Nearby() {
             <div className="page-title">Vicino a me</div>
             {activePosition && (
               <div className="page-subtitle">
-                {position ? `${stopCount} fermate entro 750 m` : 'Torino centro · 750 m'}
+                {isEstimated
+                  ? 'Posizione stimata · fermate vicine'
+                  : (position ? `${stopCount} fermate entro 750 m` : 'Torino centro · 750 m')}
               </div>
             )}
           </div>
@@ -232,7 +234,7 @@ export default function Nearby() {
           <HttpsWarning onUseDefault={() => setManualPosition(TORINO_CENTER)} />
         )}
 
-        {/* Errore geolocalizzazione generico */}
+        {/* Errore geolocalizzazione generico (non gestito da IP fallback) */}
         {error && !isHttpsError && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
             <div className="notice notice-warning">
@@ -274,6 +276,27 @@ export default function Nearby() {
         {/* Risultati */}
         {activePosition && data?.stops && (
           <>
+            {/* Banner posizione stimata da IP */}
+            {isEstimated && (
+              <div className="notice notice-warning" style={{ marginBottom: 'var(--space-md)' }}>
+                <span aria-hidden="true">📡</span>
+                <div>
+                  <span>
+                    Posizione stimata da rete IP · {estimatedCity} · precisione ~5 km
+                  </span>
+                  <div style={{ marginTop: 6 }}>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={requestLocation}
+                      style={{ minHeight: 36, fontSize: 13 }}
+                    >
+                      Usa GPS
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {data.stops.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-state-icon">🚏</div>

@@ -8,7 +8,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getServiceStatus, getGtfsInfo } from '../../utils/api';
 import useFavoritesStore from '../../store/favoritesStore';
-import useThemeStore from '../../store/themeStore';
 import StopCardV2 from '../../components/v2/StopCardV2';
 
 const QUICK_ACTIONS = [
@@ -160,46 +159,47 @@ function GtfsFooter() {
 }
 
 export default function HomeV2() {
-  const toggleTheme = useThemeStore(s => s.toggleTheme);
-
   return (
     <div className="v2-page">
       {/* Header */}
       <div className="v2-header">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              width: 34, height: 34,
-              borderRadius: 8,
-              background: 'var(--v2-brand)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 18, flexShrink: 0,
-            }}>
-              🚌
-            </div>
-            <div>
-              <div className="v2-title" style={{ fontSize: 18 }}>GTT Torino</div>
-              <div className="v2-subtitle">Orari e arrivi in tempo reale</div>
-            </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{
+            width: 36, height: 36,
+            borderRadius: 10,
+            background: 'var(--v2-brand)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 18, flexShrink: 0,
+            boxShadow: '0 2px 8px rgba(232,67,43,.35)',
+          }}>
+            🚌
           </div>
-
-          {/* Toggle V1 */}
+          <div style={{ flex: 1 }}>
+            <div className="v2-title" style={{ fontSize: 19 }}>GTT Torino</div>
+            <div className="v2-subtitle">Orari e arrivi in tempo reale</div>
+          </div>
           <button
-            onClick={toggleTheme}
+            onClick={() => window.close()}
+            title="Chiudi app"
+            aria-label="Chiudi app"
             style={{
               background: 'var(--v2-surface-2)',
               border: '1px solid var(--v2-border)',
-              borderRadius: 'var(--v2-r-pill)',
-              padding: '5px 11px',
-              fontSize: 11,
-              fontWeight: 700,
-              color: 'var(--v2-text-2)',
-              cursor: 'pointer',
-              fontFamily: 'inherit',
+              borderRadius: 'var(--v2-r-sm)',
+              width: 36, height: 36,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', flexShrink: 0,
+              color: 'var(--v2-text-3)',
+              transition: 'background 0.15s, color 0.15s',
             }}
-            aria-label="Torna al design classico"
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--v2-delayed-heavy-bg)'; e.currentTarget.style.color = 'var(--v2-delayed-heavy)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'var(--v2-surface-2)'; e.currentTarget.style.color = 'var(--v2-text-3)'; }}
           >
-            V1 classic
+            {/* Power/X icon */}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
           </button>
         </div>
       </div>

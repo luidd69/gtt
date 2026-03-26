@@ -944,11 +944,12 @@ router.get('/plan', async (req, res) => {
     const fromStopInfo = { stopId: fromStopRow.stop_id, stopName: fromStopRow.stop_name, stopCode: fromStopRow.stop_code };
     const toStopInfo   = { stopId: toStopRow.stop_id,   stopName: toStopRow.stop_name,   stopCode: toStopRow.stop_code };
 
-    // Calcola data/ora per OTP
-    const now = new Date();
+    // Calcola data/ora per OTP (fuso italiano)
     let otpDate, otpTime;
     if (arriveBy) {
-      otpDate = now.toISOString().substring(0, 10);
+      const p = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+      const v = Object.fromEntries(p.map(x => [x.type, x.value]));
+      otpDate = `${v.year}-${v.month}-${v.day}`;
       otpTime = `${arriveBy}:00`;
     }
 

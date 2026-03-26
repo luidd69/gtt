@@ -1,72 +1,80 @@
 /* ============================================================
-   GTT V2 — Design System
-   Nuovo visual language: Inter, palette semantica, alta densità.
-   Attivato dalla classe .theme-v2 su #root.
+   GTT — Design System "NOTTURNO"
+   Ispirato ai tabelloni di partenza italiani e all'industria torinese.
+   Font: Bricolage Grotesque · Tema: sempre scuro · Chip rettangolari
    ============================================================ */
 
-/* ─── Font ────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&display=swap');
+
+/* ─── Font base ────────────────────────────────────────────── */
 .theme-v2 {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'Bricolage Grotesque', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* ─── Token Light ─────────────────────────────────────────── */
+/* ─── Token — DARK DEFAULT (sempre) ───────────────────────── */
 .theme-v2 {
-  /* Brand */
-  --v2-brand:          #E8432B;
-  --v2-brand-dark:     #C43520;
-  --v2-brand-tint:     #FFF0EE;
-  --v2-brand-tint-2:   #FFE0DC;
+  /* Brand — GTT rosso, più saturo per lo sfondo scuro */
+  --v2-brand:            #FF3D20;
+  --v2-brand-dark:       #E02E14;
+  --v2-brand-tint:       #2C0E08;
+  --v2-brand-tint-2:     #3E1510;
 
-  /* Surface */
-  --v2-bg:             #F4F4F8;
-  --v2-surface-1:      #FFFFFF;
-  --v2-surface-2:      #F0F0F5;
-  --v2-surface-3:      #E4E4EC;
+  /* Superfici — nero caldo profondo */
+  --v2-bg:               #0D0C0A;
+  --v2-surface-1:        #161411;
+  --v2-surface-2:        #1E1C18;
+  --v2-surface-3:        #272420;
 
-  /* Text */
-  --v2-text-1:         #0F0F14;
-  --v2-text-2:         #62626E;
-  --v2-text-3:         #A8A8B4;
-  --v2-text-inv:       #FFFFFF;
+  /* Testo — bianco caldo */
+  --v2-text-1:           #F0EDE4;
+  --v2-text-2:           #9A9288;
+  --v2-text-3:           #4E4A44;
+  --v2-text-inv:         #0D0C0A;
 
-  /* Border */
-  --v2-border:         #E0E0EA;
-  --v2-divider:        #F0F0F5;
+  /* Bordi */
+  --v2-border:           #2E2A24;
+  --v2-divider:          #1A1814;
 
-  /* Status semantici */
-  --v2-on-time:        #16B364;
-  --v2-on-time-bg:     #DCFCE7;
-  --v2-delayed-mild:   #D97706;
-  --v2-delayed-mild-bg:#FEF3C7;
-  --v2-delayed-heavy:  #DC2626;
-  --v2-delayed-heavy-bg:#FEE2E2;
-  --v2-cancelled:      #94A3B8;
-  --v2-cancelled-bg:   #F1F5F9;
+  /* Realtime — ambra (lampada tabellone partenze) */
+  --v2-rt-color:         #FFB02E;
+  --v2-rt-glow:          rgba(255, 176, 46, 0.3);
 
-  /* Transit */
-  --v2-bus:            #2563EB;
-  --v2-bus-bg:         #EFF6FF;
-  --v2-tram:           #7C3AED;
-  --v2-tram-bg:        #F5F3FF;
-  --v2-metro:          #E8432B;
-  --v2-metro-bg:       #FFF0EE;
-  --v2-walk:           #78716C;
-  --v2-walk-bg:        #F5F5F4;
+  /* Status */
+  --v2-on-time:          #2DD17A;
+  --v2-on-time-bg:       #072318;
+  --v2-delayed-mild:     #FFB02E;
+  --v2-delayed-mild-bg:  #271D08;
+  --v2-delayed-heavy:    #FF5C3A;
+  --v2-delayed-heavy-bg: #250A06;
+  --v2-cancelled:        #625E58;
+  --v2-cancelled-bg:     #1A1816;
 
-  /* Shadow */
-  --v2-shadow-sm:      0 1px 2px rgba(15,15,20,0.06), 0 2px 6px rgba(15,15,20,0.04);
-  --v2-shadow-md:      0 2px 8px rgba(15,15,20,0.08), 0 6px 20px rgba(15,15,20,0.06);
-  --v2-shadow-lg:      0 8px 24px rgba(15,15,20,0.12), 0 2px 6px rgba(15,15,20,0.06);
+  /* Trasporto */
+  --v2-bus:              #4A90FF;
+  --v2-bus-bg:           #0A1830;
+  --v2-tram:             #B060FF;
+  --v2-tram-bg:          #1C0E30;
+  --v2-metro:            #FF3D20;
+  --v2-metro-bg:         #250A06;
+  --v2-walk:             #888480;
+  --v2-walk-bg:          #1A1816;
 
-  /* Radius */
-  --v2-r-xs:   6px;
-  --v2-r-sm:   10px;
-  --v2-r-md:   14px;
-  --v2-r-lg:   18px;
-  --v2-r-xl:   24px;
-  --v2-r-pill: 100px;
+  /* Ombre — profonde su sfondo scuro */
+  --v2-shadow-sm:  0 1px 3px rgba(0,0,0,.6), 0 2px 10px rgba(0,0,0,.4);
+  --v2-shadow-md:  0 4px 18px rgba(0,0,0,.65), 0 2px 6px rgba(0,0,0,.45);
+  --v2-shadow-lg:  0 12px 40px rgba(0,0,0,.75), 0 4px 14px rgba(0,0,0,.5);
 
-  /* Spacing */
+  /* Raggi — più squadrati, design da segnaletica */
+  --v2-r-xs:   3px;
+  --v2-r-sm:   5px;
+  --v2-r-md:   10px;
+  --v2-r-lg:   14px;
+  --v2-r-xl:   20px;
+  --v2-r-pill: 5px;    /* ← chip rettangolari, non pill */
+
+  /* Spaziatura */
   --v2-sp-2xs: 2px;
   --v2-sp-xs:  4px;
   --v2-sp-sm:  8px;
@@ -75,113 +83,149 @@
   --v2-sp-xl:  32px;
 
   /* Nav */
-  --v2-nav-h:  68px;
+  --v2-nav-h: 68px;
 }
 
-/* ─── Token Dark ──────────────────────────────────────────── */
-@media (prefers-color-scheme: dark) {
+/* ─── Override light (per chi preferisce chiaro) ───────────── */
+@media (prefers-color-scheme: light) {
   .theme-v2 {
-    --v2-bg:             #08080D;
-    --v2-surface-1:      #12121A;
-    --v2-surface-2:      #1A1A26;
-    --v2-surface-3:      #24243A;
-    --v2-text-1:         #F2F2F7;
-    --v2-text-2:         #9A9AB0;
-    --v2-text-3:         #5A5A72;
-    --v2-text-inv:       #08080D;
-    --v2-border:         #2A2A40;
-    --v2-divider:        #1A1A26;
-    --v2-brand-tint:     #3A1410;
-    --v2-brand-tint-2:   #501C16;
-    --v2-on-time-bg:     #052E16;
-    --v2-delayed-mild-bg:#451A03;
-    --v2-delayed-heavy-bg:#450A0A;
-    --v2-cancelled-bg:   #1E293B;
-    --v2-bus-bg:         #1E3A5F;
-    --v2-tram-bg:        #2E1B5F;
-    --v2-metro-bg:       #3A1410;
-    --v2-walk-bg:        #292524;
-    --v2-shadow-sm:      0 1px 2px rgba(0,0,0,0.3), 0 2px 6px rgba(0,0,0,0.2);
-    --v2-shadow-md:      0 2px 8px rgba(0,0,0,0.4), 0 6px 20px rgba(0,0,0,0.3);
+    --v2-brand:            #E8432B;
+    --v2-brand-dark:       #C73820;
+    --v2-brand-tint:       #FFF0EE;
+    --v2-brand-tint-2:     #FFDED9;
+    --v2-bg:               #F2F0EA;
+    --v2-surface-1:        #FFFFFF;
+    --v2-surface-2:        #ECEAE3;
+    --v2-surface-3:        #E2DED6;
+    --v2-text-1:           #0F0D0A;
+    --v2-text-2:           #6A6460;
+    --v2-text-3:           #A8A298;
+    --v2-text-inv:         #FFFFFF;
+    --v2-border:           #D8D4CC;
+    --v2-divider:          #ECE9E2;
+    --v2-rt-color:         #D4720A;
+    --v2-rt-glow:          rgba(212, 114, 10, 0.25);
+    --v2-on-time:          #0C9450;
+    --v2-on-time-bg:       #ECFAF3;
+    --v2-delayed-mild:     #C47B0B;
+    --v2-delayed-mild-bg:  #FEF5E0;
+    --v2-delayed-heavy:    #D42020;
+    --v2-delayed-heavy-bg: #FEE8E8;
+    --v2-cancelled:        #9B9690;
+    --v2-cancelled-bg:     #F0EDEA;
+    --v2-bus:              #1A46CC;
+    --v2-bus-bg:           #ECF1FF;
+    --v2-tram:             #7030D0;
+    --v2-tram-bg:          #F0EAFF;
+    --v2-metro:            #E8432B;
+    --v2-metro-bg:         #FFF0EE;
+    --v2-walk:             #6B7280;
+    --v2-walk-bg:          #F4F3F0;
+    --v2-shadow-sm:  0 1px 2px rgba(15,13,10,.05), 0 2px 8px rgba(15,13,10,.04);
+    --v2-shadow-md:  0 4px 14px rgba(15,13,10,.09), 0 2px 4px rgba(15,13,10,.05);
+    --v2-shadow-lg:  0 10px 32px rgba(15,13,10,.13), 0 4px 10px rgba(15,13,10,.07);
   }
 }
 
-/* ─── Base del tema V2 ────────────────────────────────────── */
+/* ─── Base / sfondo pagina ─────────────────────────────────── */
 .theme-v2 {
   background: var(--v2-bg);
   color: var(--v2-text-1);
 }
 
-/* ─── Layout ──────────────────────────────────────────────── */
+/* Copre l'intero sfondo (anche quando i contenuti sono corti) */
+.theme-v2, .theme-v2 .app-container {
+  background: var(--v2-bg);
+}
+
+/* ─── Layout ───────────────────────────────────────────────── */
 .v2-page {
   min-height: calc(100dvh - var(--v2-nav-h) - env(safe-area-inset-bottom, 0px));
   background: var(--v2-bg);
 }
 
+/* ─── Header ───────────────────────────────────────────────── */
 .v2-header {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: rgba(244, 244, 248, 0.92);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid var(--v2-border);
+  background: rgba(13, 12, 10, 0.96);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid var(--v2-divider);
   padding: var(--v2-sp-sm) var(--v2-sp-md);
   padding-top: calc(var(--v2-sp-sm) + env(safe-area-inset-top, 0px));
 }
-
-@media (prefers-color-scheme: dark) {
+@media (prefers-color-scheme: light) {
   .v2-header {
-    background: rgba(8, 8, 13, 0.92);
+    background: rgba(242, 240, 234, 0.96);
   }
 }
 
+/* ─── Tipografia ───────────────────────────────────────────── */
 .v2-title {
   font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.4px;
+  font-weight: 800;
+  letter-spacing: -0.6px;
   color: var(--v2-text-1);
   line-height: 1.2;
 }
 
 .v2-subtitle {
-  font-size: 13px;
-  color: var(--v2-text-2);
-  margin-top: 1px;
-  font-weight: 400;
+  font-size: 12px;
+  color: var(--v2-text-3);
+  margin-top: 2px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
 }
 
-/* ─── Section label ───────────────────────────────────────── */
+/* Label sezione — con accento a sinistra color ambra */
 .v2-section-label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.7px;
+  letter-spacing: 1.2px;
   text-transform: uppercase;
   color: var(--v2-text-3);
   padding: var(--v2-sp-md) var(--v2-sp-md) var(--v2-sp-xs);
+  padding-left: calc(var(--v2-sp-md) + 10px);
+  position: relative;
+}
+.v2-section-label::before {
+  content: '';
+  position: absolute;
+  left: var(--v2-sp-md);
+  top: 50%;
+  transform: translateY(-50%) translateY(-2px);
+  width: 3px;
+  height: 12px;
+  background: var(--v2-brand);
+  border-radius: 2px;
 }
 
-/* ─── RouteChip V2 ────────────────────────────────────────── */
+/* ─── Route Chip — rettangolare, denso ─────────────────────── */
 .v2-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 3px 8px;
-  border-radius: var(--v2-r-xs);
+  padding: 3px 9px;
+  border-radius: var(--v2-r-pill);   /* = 5px — quasi quadrato */
   font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.1px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
   white-space: nowrap;
   min-width: 28px;
-  line-height: 1.3;
+  line-height: 1.35;
 }
-.v2-chip.bus   { background: var(--v2-bus);   color: #fff; }
-.v2-chip.tram  { background: var(--v2-tram);  color: #fff; border-radius: var(--v2-r-pill); }
-.v2-chip.metro { background: var(--v2-metro); color: #fff; border-radius: var(--v2-r-pill); }
-.v2-chip.walk  { background: var(--v2-walk-bg); color: var(--v2-walk); border: 1px solid var(--v2-border); }
-.v2-chip.custom { color: #fff; }
+.v2-chip.bus    { background: var(--v2-bus);      color: #fff; }
+.v2-chip.tram   { background: var(--v2-tram);     color: #fff; }
+.v2-chip.metro  { background: var(--v2-metro);    color: #fff; }
+.v2-chip.walk   { background: var(--v2-walk-bg);  color: var(--v2-walk); border: 1.5px solid var(--v2-border); }
+.v2-chip.custom { color: #fff; border-radius: var(--v2-r-pill); }
 
-/* ─── DelayBadge V2 ───────────────────────────────────────── */
+.v2-chip.size-lg { font-size: 13px; padding: 4px 11px; min-width: 32px; }
+.v2-chip.size-sm { font-size: 10px; padding: 2px 6px;  min-width: 22px; }
+
+/* ─── Delay Badge ──────────────────────────────────────────── */
 .v2-badge {
   display: inline-flex;
   align-items: center;
@@ -189,45 +233,44 @@
   border-radius: var(--v2-r-pill);
   font-size: 11px;
   font-weight: 700;
+  letter-spacing: 0.1px;
   white-space: nowrap;
 }
 .v2-badge.on-time   { background: var(--v2-on-time-bg);        color: var(--v2-on-time); }
 .v2-badge.mild      { background: var(--v2-delayed-mild-bg);   color: var(--v2-delayed-mild); }
 .v2-badge.heavy     { background: var(--v2-delayed-heavy-bg);  color: var(--v2-delayed-heavy); }
 .v2-badge.cancelled { background: var(--v2-cancelled-bg);      color: var(--v2-cancelled); }
-.v2-badge.scheduled { background: var(--v2-surface-2);         color: var(--v2-text-3); }
+.v2-badge.scheduled { background: transparent;                  color: var(--v2-text-3); }
 
-/* ─── Realtime dot V2 ─────────────────────────────────────── */
+/* ─── Realtime Dot — ambra, pulsante ─────────────────────── */
 .v2-rt-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--v2-on-time);
+  background: var(--v2-rt-color);
   flex-shrink: 0;
-  animation: v2-pulse 2s ease-in-out infinite;
+  animation: v2-rt-pulse 2.4s ease-in-out infinite;
 }
-@keyframes v2-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%       { opacity: 0.6; transform: scale(0.85); }
+@keyframes v2-rt-pulse {
+  0%   { box-shadow: 0 0 0 0 var(--v2-rt-glow); }
+  50%  { box-shadow: 0 0 0 5px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
 }
 
-/* ─── Card V2 ─────────────────────────────────────────────── */
+/* ─── Card ─────────────────────────────────────────────────── */
 .v2-card {
   background: var(--v2-surface-1);
   border-radius: var(--v2-r-md);
-  box-shadow: var(--v2-shadow-sm);
+  border: 1px solid var(--v2-border);
   overflow: hidden;
 }
+.v2-card + .v2-card { margin-top: var(--v2-sp-sm); }
 
-.v2-card + .v2-card {
-  margin-top: var(--v2-sp-sm);
-}
-
-/* ─── List V2 ─────────────────────────────────────────────── */
+/* ─── List ─────────────────────────────────────────────────── */
 .v2-list {
   background: var(--v2-surface-1);
   border-radius: var(--v2-r-md);
-  box-shadow: var(--v2-shadow-sm);
+  border: 1px solid var(--v2-border);
   overflow: hidden;
 }
 
@@ -235,7 +278,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 14px var(--v2-sp-md);
+  padding: 15px var(--v2-sp-md);
   background: var(--v2-surface-1);
   border: none;
   width: 100%;
@@ -245,140 +288,137 @@
   color: var(--v2-text-1);
   font-family: inherit;
   font-size: 15px;
-  min-height: 52px;
-  transition: background 0.12s;
+  min-height: 60px;
+  transition: background 0.1s;
   -webkit-tap-highlight-color: transparent;
 }
-
 .v2-list-item:not(:last-child) {
   border-bottom: 1px solid var(--v2-divider);
 }
-
-.v2-list-item:active {
-  background: var(--v2-surface-2);
-}
-
+.v2-list-item:active { background: var(--v2-surface-2); }
 @media (hover: hover) {
   .v2-list-item:hover { background: var(--v2-surface-2); }
 }
 
-/* ─── ArrivalRow V2 ───────────────────────────────────────── */
+/* ─── Arrival Row — tabellone partenze ─────────────────────── */
 .v2-arrival-time {
-  font-size: 26px;
+  font-size: 30px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -1px;
   color: var(--v2-text-1);
   line-height: 1;
+  font-feature-settings: "tnum";
 }
-
 .v2-arrival-time.soon {
-  color: var(--v2-brand);
+  color: var(--v2-rt-color);  /* ambra invece di rosso */
+  font-weight: 800;
 }
-
 .v2-arrival-wait {
-  font-size: 12px;
-  color: var(--v2-text-2);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--v2-text-3);
   font-variant-numeric: tabular-nums;
-  margin-top: 2px;
+  margin-top: 4px;
   text-align: right;
+  letter-spacing: 0.1px;
 }
-
 .v2-arrival-scheduled {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--v2-text-3);
   text-decoration: line-through;
   text-align: right;
   font-variant-numeric: tabular-nums;
+  margin-bottom: 1px;
 }
 
-/* ─── Search Bar V2 ───────────────────────────────────────── */
+/* ─── Search Bar ───────────────────────────────────────────── */
 .v2-search-bar {
   display: flex;
   align-items: center;
   gap: var(--v2-sp-sm);
-  background: var(--v2-surface-2);
-  border-radius: var(--v2-r-pill);
-  padding: 12px 16px;
-  border: 1.5px solid transparent;
+  background: var(--v2-surface-1);
+  border-radius: var(--v2-r-md);
+  padding: 13px 16px;
+  border: 1px solid var(--v2-border);
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-
 .v2-search-bar:focus-within {
   border-color: var(--v2-brand);
   box-shadow: 0 0 0 3px var(--v2-brand-tint);
-  background: var(--v2-surface-1);
 }
-
 .v2-search-bar input {
   flex: 1;
   border: none;
   background: transparent;
-  font-size: 15px;
+  font-size: 16px;
   font-family: inherit;
+  font-weight: 500;
   color: var(--v2-text-1);
   outline: none;
 }
+.v2-search-bar input::placeholder { color: var(--v2-text-3); font-weight: 400; }
 
-.v2-search-bar input::placeholder {
-  color: var(--v2-text-3);
-}
-
-/* ─── Btn V2 ──────────────────────────────────────────────── */
+/* ─── Button ───────────────────────────────────────────────── */
 .v2-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 7px;
   border: none;
   border-radius: var(--v2-r-md);
   font-family: inherit;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   min-height: 52px;
-  padding: 0 20px;
-  transition: background 0.15s, transform 0.1s, opacity 0.15s;
+  padding: 0 22px;
+  transition: background 0.12s, transform 0.1s, box-shadow 0.12s, opacity 0.12s;
   -webkit-tap-highlight-color: transparent;
+  letter-spacing: -0.1px;
 }
-
 .v2-btn-primary {
   background: var(--v2-brand);
   color: #fff;
+  box-shadow: 0 2px 12px rgba(255, 61, 32, 0.4);
 }
-.v2-btn-primary:hover   { background: var(--v2-brand-dark); }
-.v2-btn-primary:active  { transform: scale(0.98); }
-.v2-btn-primary:disabled { opacity: 0.4; pointer-events: none; }
+.v2-btn-primary:hover  {
+  background: var(--v2-brand-dark);
+  box-shadow: 0 4px 18px rgba(255, 61, 32, 0.5);
+}
+.v2-btn-primary:active { transform: scale(0.98); box-shadow: none; }
+.v2-btn-primary:disabled { opacity: 0.3; pointer-events: none; box-shadow: none; }
 
 .v2-btn-secondary {
   background: var(--v2-surface-2);
   color: var(--v2-text-1);
+  border: 1px solid var(--v2-border);
 }
 .v2-btn-secondary:hover  { background: var(--v2-surface-3); }
 .v2-btn-secondary:active { transform: scale(0.98); }
-
 .v2-btn-full { width: 100%; }
 
-/* ─── Stop Picker V2 ──────────────────────────────────────── */
+/* ─── Stop Picker ──────────────────────────────────────────── */
 .v2-stop-input-wrap {
   position: relative;
   display: flex;
   align-items: center;
   gap: var(--v2-sp-sm);
-  background: var(--v2-surface-2);
+  background: var(--v2-surface-1);
   border-radius: var(--v2-r-md);
-  padding: 12px 14px;
-  border: 1.5px solid var(--v2-border);
-  transition: border-color 0.15s;
-  min-height: 52px;
+  padding: 14px 16px;
+  border: 1px solid var(--v2-border);
+  transition: border-color 0.15s, box-shadow 0.15s;
+  min-height: 56px;
 }
 .v2-stop-input-wrap:focus-within {
   border-color: var(--v2-brand);
-  background: var(--v2-surface-1);
+  box-shadow: 0 0 0 3px var(--v2-brand-tint);
 }
 .v2-stop-input-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.6px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
   text-transform: uppercase;
   color: var(--v2-text-3);
   flex-shrink: 0;
@@ -389,7 +429,7 @@
   border: none;
   background: transparent;
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
   font-family: inherit;
   color: var(--v2-text-1);
   outline: none;
@@ -397,7 +437,7 @@
 .v2-stop-input::placeholder { color: var(--v2-text-3); font-weight: 400; }
 .v2-stop-name-selected {
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--v2-text-1);
   flex: 1;
   overflow: hidden;
@@ -408,28 +448,28 @@
   position: absolute;
   top: calc(100% + 6px);
   left: 0; right: 0;
-  background: var(--v2-surface-1);
+  background: var(--v2-surface-2);
   border-radius: var(--v2-r-md);
   box-shadow: var(--v2-shadow-lg);
   z-index: 50;
-  max-height: 260px;
+  max-height: 280px;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   border: 1px solid var(--v2-border);
 }
 
-/* ─── Itinerary Card V2 ────────────────────────────────────── */
+/* ─── Itinerary Card ───────────────────────────────────────── */
 .v2-itin-card {
   background: var(--v2-surface-1);
   border-radius: var(--v2-r-md);
-  box-shadow: var(--v2-shadow-sm);
-  padding: 14px var(--v2-sp-md);
+  border: 1px solid var(--v2-border);
+  padding: 16px var(--v2-sp-md);
   border-left: 3px solid transparent;
   cursor: pointer;
-  transition: box-shadow 0.15s, border-color 0.15s;
+  transition: border-color 0.12s, background 0.12s, transform 0.1s;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   width: 100%;
   text-align: left;
   font-family: inherit;
@@ -438,51 +478,50 @@
 }
 .v2-itin-card.recommended {
   border-left-color: var(--v2-brand);
-  box-shadow: var(--v2-shadow-md);
+  background: var(--v2-surface-1);
 }
 .v2-itin-card:active { transform: scale(0.99); }
+@media (hover: hover) {
+  .v2-itin-card:hover { background: var(--v2-surface-2); }
+}
+
 .v2-itin-times {
   display: flex;
   gap: 4px;
   align-items: baseline;
   font-size: 22px;
-  font-weight: 700;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.8px;
   flex-shrink: 0;
 }
-.v2-itin-arrow {
-  font-size: 13px;
-  color: var(--v2-text-3);
-  font-weight: 400;
-}
+.v2-itin-arrow { font-size: 13px; color: var(--v2-text-3); font-weight: 400; }
 
-/* ─── Leg strip V2 ────────────────────────────────────────── */
+/* ─── Leg Strip ────────────────────────────────────────────── */
 .v2-leg-strip {
   display: flex;
   align-items: center;
   gap: 4px;
   flex-wrap: wrap;
-  margin-top: 6px;
+  margin-top: 8px;
 }
-.v2-leg-sep {
-  font-size: 11px;
-  color: var(--v2-text-3);
-  font-variant-numeric: tabular-nums;
-}
+.v2-leg-sep { font-size: 10px; color: var(--v2-text-3); }
 
-/* ─── Status bar V2 ───────────────────────────────────────── */
+/* ─── Status Bar ───────────────────────────────────────────── */
 .v2-status-bar {
   display: flex;
   align-items: center;
   gap: var(--v2-sp-sm);
-  padding: 10px var(--v2-sp-md);
+  padding: 10px 14px;
   border-radius: var(--v2-r-sm);
   background: var(--v2-surface-2);
+  border: 1px solid var(--v2-border);
   font-size: 12px;
+  font-weight: 500;
   color: var(--v2-text-2);
 }
 
-/* ─── BottomNav V2 ────────────────────────────────────────── */
+/* ─── Bottom Navigation ────────────────────────────────────── */
 .v2-bottom-nav {
   position: fixed;
   bottom: 0;
@@ -491,18 +530,18 @@
   width: 100%;
   max-width: 600px;
   height: calc(var(--v2-nav-h) + env(safe-area-inset-bottom, 0px));
-  background: rgba(244, 244, 248, 0.94);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-top: 1px solid var(--v2-border);
+  background: rgba(13, 12, 10, 0.97);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-top: 1px solid var(--v2-divider);
   display: flex;
   align-items: flex-start;
   padding-top: 8px;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   z-index: 100;
 }
-
-@media (prefers-color-scheme: dark) {
-  .v2-bottom-nav { background: rgba(8, 8, 13, 0.94); }
+@media (prefers-color-scheme: light) {
+  .v2-bottom-nav { background: rgba(242, 240, 234, 0.97); }
 }
 
 .v2-nav-item {
@@ -510,8 +549,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
-  padding: 4px 2px;
+  gap: 4px;
+  padding: 4px 4px 2px;
   border: none;
   background: transparent;
   cursor: pointer;
@@ -521,66 +560,128 @@
   min-height: 52px;
   transition: color 0.15s;
   -webkit-tap-highlight-color: transparent;
+  position: relative;
 }
+
 .v2-nav-item svg {
   width: 22px;
   height: 22px;
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+
+/* Attivo: sfondo pill riempito + colore brand */
 .v2-nav-item.active {
   color: var(--v2-brand);
 }
-.v2-nav-label {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.1px;
+.v2-nav-item.active svg {
+  transform: scale(1.1);
+}
+.v2-nav-item.active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 36px;
+  height: 3px;
+  background: var(--v2-brand);
+  border-radius: 0 0 3px 3px;
+  box-shadow: 0 0 12px rgba(255, 61, 32, 0.6);
 }
 
-/* ─── Notice V2 ───────────────────────────────────────────── */
+.v2-nav-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+/* ─── Notice Banner ────────────────────────────────────────── */
 .v2-notice {
   display: flex;
   align-items: flex-start;
-  gap: var(--v2-sp-sm);
-  padding: 12px var(--v2-sp-md);
+  gap: 10px;
+  padding: 13px var(--v2-sp-md);
   border-radius: var(--v2-r-md);
   font-size: 13px;
-  line-height: 1.45;
+  font-weight: 500;
+  line-height: 1.5;
+  border: 1px solid transparent;
 }
-.v2-notice.info    { background: var(--v2-bus-bg);         color: var(--v2-bus); }
-.v2-notice.success { background: var(--v2-on-time-bg);     color: var(--v2-on-time); }
-.v2-notice.warning { background: var(--v2-delayed-mild-bg); color: var(--v2-delayed-mild); }
-.v2-notice.danger  { background: var(--v2-delayed-heavy-bg); color: var(--v2-delayed-heavy); }
+.v2-notice.info    {
+  background: var(--v2-bus-bg);
+  color: var(--v2-bus);
+  border-color: rgba(74, 144, 255, 0.15);
+}
+.v2-notice.success {
+  background: var(--v2-on-time-bg);
+  color: var(--v2-on-time);
+  border-color: rgba(45, 209, 122, 0.15);
+}
+.v2-notice.warning {
+  background: var(--v2-delayed-mild-bg);
+  color: var(--v2-delayed-mild);
+  border-color: rgba(255, 176, 46, 0.15);
+}
+.v2-notice.danger  {
+  background: var(--v2-delayed-heavy-bg);
+  color: var(--v2-delayed-heavy);
+  border-color: rgba(255, 92, 58, 0.15);
+}
 
-/* ─── Quick action tile V2 ────────────────────────────────── */
+/* ─── Quick Action Tile ────────────────────────────────────── */
 .v2-tile {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
   background: var(--v2-surface-1);
   border-radius: var(--v2-r-md);
-  box-shadow: var(--v2-shadow-sm);
-  padding: 16px 8px;
-  border: none;
+  border: 1px solid var(--v2-border);
+  padding: 20px 8px;
   cursor: pointer;
   text-decoration: none;
   color: var(--v2-text-1);
   font-family: inherit;
-  min-height: 80px;
-  transition: box-shadow 0.15s, transform 0.1s;
+  min-height: 88px;
+  transition: border-color 0.15s, background 0.12s, transform 0.12s;
   -webkit-tap-highlight-color: transparent;
+  position: relative;
+  overflow: hidden;
 }
-.v2-tile:active { transform: scale(0.97); }
-@media (hover: hover) { .v2-tile:hover { box-shadow: var(--v2-shadow-md); } }
-.v2-tile-icon { font-size: 24px; }
+.v2-tile::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--v2-brand);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.v2-tile:active {
+  transform: scale(0.95);
+}
+.v2-tile:active::after { opacity: 0.05; }
+@media (hover: hover) {
+  .v2-tile:hover {
+    border-color: var(--v2-brand);
+    background: var(--v2-surface-2);
+  }
+}
+.v2-tile-icon  {
+  font-size: 24px;
+  line-height: 1;
+}
 .v2-tile-label {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
   color: var(--v2-text-2);
   text-align: center;
+  letter-spacing: 0.2px;
+  text-transform: uppercase;
 }
 
-/* ─── Skeleton V2 ─────────────────────────────────────────── */
+/* ─── Skeleton ─────────────────────────────────────────────── */
 .v2-skeleton {
   background: linear-gradient(
     90deg,
@@ -589,7 +690,7 @@
     var(--v2-surface-2) 75%
   );
   background-size: 200% 100%;
-  animation: v2-shimmer 1.4s infinite;
+  animation: v2-shimmer 1.6s infinite;
   border-radius: var(--v2-r-sm);
 }
 @keyframes v2-shimmer {
@@ -597,7 +698,13 @@
   100% { background-position: -200% 0; }
 }
 
-/* ─── Empty state V2 ──────────────────────────────────────── */
+/* Skeleton arrivi */
+@keyframes v2-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+/* ─── Empty State ──────────────────────────────────────────── */
 .v2-empty {
   display: flex;
   flex-direction: column;
@@ -607,46 +714,25 @@
   gap: var(--v2-sp-sm);
   text-align: center;
 }
-.v2-empty-icon { font-size: 40px; margin-bottom: 4px; }
+.v2-empty-icon  { font-size: 40px; margin-bottom: 4px; opacity: 0.5; }
 .v2-empty-title {
   font-size: 17px;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--v2-text-1);
+  letter-spacing: -0.3px;
 }
 .v2-empty-msg {
   font-size: 14px;
   color: var(--v2-text-2);
-  line-height: 1.5;
+  line-height: 1.55;
   max-width: 280px;
 }
 
-/* ─── Theme switch button ─────────────────────────────────── */
-.v2-theme-toggle {
-  position: fixed;
-  bottom: calc(var(--v2-nav-h) + env(safe-area-inset-bottom, 0px) + 16px);
-  right: 16px;
-  z-index: 200;
-  background: var(--v2-surface-1);
-  border: 1.5px solid var(--v2-border);
-  border-radius: var(--v2-r-pill);
-  padding: 8px 14px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--v2-text-2);
-  cursor: pointer;
-  box-shadow: var(--v2-shadow-md);
-  font-family: inherit;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  transition: box-shadow 0.15s;
-}
-.v2-theme-toggle:hover { box-shadow: var(--v2-shadow-lg); }
-
-/* ─── Utility V2 ──────────────────────────────────────────── */
+/* ─── Utility ──────────────────────────────────────────────── */
 .v2-truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .v2-fw-600   { font-weight: 600; }
 .v2-fw-700   { font-weight: 700; }
+.v2-fw-800   { font-weight: 800; }
 .v2-text-1   { color: var(--v2-text-1); }
 .v2-text-2   { color: var(--v2-text-2); }
 .v2-text-3   { color: var(--v2-text-3); }
@@ -656,9 +742,9 @@
 .v2-row      { display: flex; align-items: center; }
 .v2-col      { display: flex; flex-direction: column; }
 
-/* ─── A11y V2 ─────────────────────────────────────────────── */
+/* ─── A11y ─────────────────────────────────────────────────── */
 .theme-v2 :focus-visible {
-  outline: 3px solid var(--v2-brand);
+  outline: 2px solid var(--v2-brand);
   outline-offset: 2px;
   border-radius: var(--v2-r-sm);
 }

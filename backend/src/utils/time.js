@@ -26,35 +26,44 @@ function secondsToHHMM(seconds) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
+const TZ = 'Europe/Rome';
+
 /**
- * Restituisce i secondi dalla mezzanotte per l'ora corrente.
+ * Estrae le parti data/ora nel fuso orario italiano (CET/CEST).
+ */
+function italyParts(now = new Date()) {
+  return Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: TZ,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false, weekday: 'long',
+    }).formatToParts(now).map(p => [p.type, p.value])
+  );
+}
+
+/**
+ * Restituisce i secondi dalla mezzanotte per l'ora corrente (fuso italiano).
  */
 function nowInSeconds() {
-  const now = new Date();
-  return now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+  const p = italyParts();
+  return parseInt(p.hour) * 3600 + parseInt(p.minute) * 60 + parseInt(p.second);
 }
 
 /**
- * Restituisce la data odierna in formato YYYYMMDD (usato da GTFS).
+ * Restituisce la data odierna in formato YYYYMMDD (usato da GTFS), fuso italiano.
  */
 function todayGtfsDate() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}${m}${d}`;
+  const p = italyParts();
+  return `${p.year}${p.month}${p.day}`;
 }
 
 /**
- * Restituisce il giorno della settimana come campo GTFS calendar.
+ * Restituisce il giorno della settimana come campo GTFS calendar (fuso italiano).
  * (es. 'monday', 'tuesday', ...)
  */
 function todayWeekdayField() {
-  const days = [
-    'sunday', 'monday', 'tuesday', 'wednesday',
-    'thursday', 'friday', 'saturday',
-  ];
-  return days[new Date().getDay()];
+  return italyParts().weekday.toLowerCase();
 }
 
 /**
