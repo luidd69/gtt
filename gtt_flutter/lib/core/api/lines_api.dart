@@ -11,7 +11,7 @@ class LinesApi {
     final params = <String, dynamic>{};
     if (type != null) params['type'] = type;
     final res = await _dio.get('/lines', queryParameters: params);
-    final list = res.data as List;
+    final list = (res.data['lines'] ?? res.data) as List;
     return list.map((e) => RouteLine.fromJson(e as Map<String, dynamic>)).toList();
   }
 

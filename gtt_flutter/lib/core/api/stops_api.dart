@@ -9,14 +9,14 @@ class StopsApi {
 
   Future<List<Stop>> search(String query) async {
     final res = await _dio.get('/stops/search', queryParameters: {'q': query});
-    final list = res.data as List;
+    final list = (res.data['stops'] ?? res.data) as List;
     return list.map((e) => Stop.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<List<Stop>> nearby(double lat, double lon, {double radius = 0.5}) async {
     final res = await _dio.get('/stops/nearby',
         queryParameters: {'lat': lat, 'lon': lon, 'radius': radius});
-    final list = res.data as List;
+    final list = (res.data['stops'] ?? res.data) as List;
     return list.map((e) => Stop.fromJson(e as Map<String, dynamic>)).toList();
   }
 
