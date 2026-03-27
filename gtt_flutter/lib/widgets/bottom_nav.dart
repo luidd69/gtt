@@ -10,8 +10,9 @@ class BottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final safeIndex = currentIndex < 0 ? 0 : currentIndex;
     return BottomNavigationBar(
-      currentIndex: currentIndex,
+      currentIndex: safeIndex,
       onTap: (i) {
         if (i != currentIndex) context.go(_routes[i]);
       },

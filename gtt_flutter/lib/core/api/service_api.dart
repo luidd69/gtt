@@ -20,7 +20,7 @@ class ServiceAlert {
 
   factory ServiceAlert.fromJson(Map<String, dynamic> json) => ServiceAlert(
         id: json['id'] ?? '',
-        title: json['title'] ?? json['headerText'] ?? '',
+        title: json['header'] ?? json['title'] ?? json['headerText'] ?? '',
         description: json['description'] ?? json['descriptionText'],
         url: json['url'],
         effect: json['effect'],
@@ -42,7 +42,7 @@ class ServiceStatus {
         alerts: (json['alerts'] as List? ?? [])
             .map((a) => ServiceAlert.fromJson(a as Map<String, dynamic>))
             .toList(),
-        gtfsLoaded: json['gtfsLoaded'] as bool? ?? false,
+        gtfsLoaded: json['available'] as bool? ?? json['gtfsLoaded'] as bool? ?? false,
         gtfsLastUpdated: json['gtfsLastUpdated'],
       );
 }
