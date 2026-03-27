@@ -1,0 +1,2 @@
+rootProject.name = "gtt_flutter"
+include ':app'

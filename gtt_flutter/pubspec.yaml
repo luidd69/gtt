@@ -1,0 +1,60 @@
+name: gtt_flutter
+description: GitTo Torino - App trasporto pubblico per Android
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # HTTP
+  dio: ^5.4.0
+
+  # State management
+  flutter_riverpod: ^2.5.0
+  riverpod_annotation: ^2.3.0
+
+  # Routing
+  go_router: ^14.0.0
+
+  # Persistenza locale
+  shared_preferences: ^2.3.0
+
+  # Mappe
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.0
+
+  # MQTT (veicoli live)
+  mqtt_client: ^10.0.0
+
+  # Firebase / notifiche
+  firebase_core: ^3.0.0
+  firebase_messaging: ^15.0.0
+  flutter_local_notifications: ^17.0.0
+
+  # Geolocalizzazione
+  geolocator: ^12.0.0
+  geocoding: ^3.0.0
+
+  # UI / util
+  intl: ^0.19.0
+  flutter_animate: ^4.5.0
+  material_symbols_icons: ^4.2.0
+  cached_network_image: ^3.3.0
+  url_launcher: ^6.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  build_runner: ^2.4.0
+  riverpod_generator: ^2.3.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/fonts/

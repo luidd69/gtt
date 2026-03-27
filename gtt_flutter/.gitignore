@@ -1,0 +1,34 @@
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+
+# Android
+android/.gradle/
+android/captures/
+android/gradlew
+android/gradlew.bat
+android/local.properties
+android/key.properties
+
+# Firebase — NON committare questi file sensibili
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+
+# Keystore — MAI committare
+*.jks
+*.keystore
+android/app/keystore/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
