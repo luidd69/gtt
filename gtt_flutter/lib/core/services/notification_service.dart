@@ -1,12 +1,5 @@
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-@pragma('vm:entry-point')
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // FCM background handler — non serve inizializzare Firebase qui
-  // perché è già inizializzato nel main
-}
 
 class NotificationService {
   static final _localNotifications = FlutterLocalNotificationsPlugin();
@@ -16,16 +9,6 @@ class NotificationService {
   static const _channelDesc = 'Notifiche per i promemoria di partenza';
 
   Future<void> initialize() async {
-    // Firebase Messaging
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-    await FirebaseMessaging.instance.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-
-    // Local notifications
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
     const initSettings = InitializationSettings(android: androidSettings);
@@ -45,8 +28,7 @@ class NotificationService {
         ?.createNotificationChannel(androidChannel);
   }
 
-  Future<String?> getFcmToken() =>
-      FirebaseMessaging.instance.getToken();
+  Future<String?> getFcmToken() async => null; // Firebase non configurato
 
   Future<void> showLocalNotification({
     required int id,

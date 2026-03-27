@@ -36,7 +36,7 @@ class JourneyPlanState {
   bool get canSearch => from != null && to != null;
 }
 
-class JourneyPlanNotifier extends AsyncNotifier<JourneyPlanState> {
+class JourneyPlanNotifier extends AutoDisposeAsyncNotifier<JourneyPlanState> {
   @override
   Future<JourneyPlanState> build() async => const JourneyPlanState();
 

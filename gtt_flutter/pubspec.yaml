@@ -31,9 +31,7 @@ dependencies:
   # MQTT (veicoli live)
   mqtt_client: ^10.0.0
 
-  # Firebase / notifiche
-  firebase_core: ^3.0.0
-  firebase_messaging: ^15.0.0
+  # Notifiche locali
   flutter_local_notifications: ^17.0.0
 
   # Geolocalizzazione

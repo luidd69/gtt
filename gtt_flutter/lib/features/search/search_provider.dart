@@ -30,11 +30,14 @@ class SearchState {
       );
 }
 
-class SearchNotifier extends AsyncNotifier<SearchState> {
+class SearchNotifier extends AutoDisposeAsyncNotifier<SearchState> {
   Timer? _debounce;
 
   @override
-  Future<SearchState> build() async => const SearchState();
+  Future<SearchState> build() async {
+    ref.onDispose(() => _debounce?.cancel());
+    return const SearchState();
+  }
 
   void onQueryChanged(String query) {
     _debounce?.cancel();
@@ -57,11 +60,6 @@ class SearchNotifier extends AsyncNotifier<SearchState> {
     }
   }
 
-  @override
-  void dispose() {
-    _debounce?.cancel();
-    super.dispose();
-  }
 }
 
 final searchProvider =

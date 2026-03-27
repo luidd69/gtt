@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/reminder.dart';
 import '../../../core/services/reminder_service.dart';
 
-class RemindersNotifier extends AsyncNotifier<List<Reminder>> {
+class RemindersNotifier extends AutoDisposeAsyncNotifier<List<Reminder>> {
   @override
   Future<List<Reminder>> build() async {
     return ref.watch(reminderServiceProvider).loadAll();
