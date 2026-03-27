@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // In emulatore Android: 10.0.2.2 punta a localhost dell'host
 const String kBaseUrl = String.fromEnvironment(
   'GTT_API_URL',
-  defaultValue: 'http://10.0.2.2:3011/api',
+  defaultValue: 'http://85.25.172.74:3011/api',
 );
 
 final dioProvider = Provider<Dio>((ref) {
