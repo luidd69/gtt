@@ -24,6 +24,7 @@ const arrivalsRouter = require('./routes/arrivals');
 const serviceRouter = require('./routes/service');
 const journeyRouter = require('./routes/journey');
 const tripsRouter = require('./routes/trips');
+const remindersRouter = require('./routes/reminders');
 
 const PORT = parseInt(process.env.PORT) || 3001;
 const app = express();
@@ -55,7 +56,7 @@ app.use(cors({
     }
     callback(new Error(`CORS: Origin ${origin} non autorizzata`));
   },
-  methods: ['GET'],
+  methods: ['GET', 'POST', 'DELETE'],
 }));
 
 app.use(express.json());
@@ -68,6 +69,7 @@ app.use('/api/arrivals', arrivalsRouter);
 app.use('/api/service', serviceRouter);
 app.use('/api/journey', journeyRouter);
 app.use('/api/trips', tripsRouter);
+app.use('/api/reminders', remindersRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {

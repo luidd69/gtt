@@ -3,7 +3,7 @@
  * Ricerca fermate e linee con design V2.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { searchStops, getLines } from '../../utils/api';
@@ -32,7 +32,8 @@ function LineItemV2({ route }) {
   return (
     <Link
       to={`/lines/${route.route_id}`}
-      style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0' }}
+      className="v2-list-item"
+      style={{ textDecoration: 'none' }}
     >
       <RouteChip
         shortName={route.route_short_name}
@@ -151,6 +152,125 @@ function LinesExplorerV2({ query = '' }) {
   );
 }
 
+// ─── Fermate vicino a me ───────────────────────────────────────────────────────
+
+function NearbyStops() {
+  const [geoState, setGeoState] = useState('idle'); // idle | loading | done | error | denied | unsupported
+  const [coords, setCoords]     = useState(null);
+
+  const { data, isFetching } = useQuery({
+    queryKey: ['nearby-stops', coords?.lat?.toFixed(4), coords?.lon?.toFixed(4)],
+    queryFn: async () => {
+      const r = await fetch(`/api/stops/nearby?lat=${coords.lat}&lon=${coords.lon}&radius=0.6`);
+      return r.json();
+    },
+    enabled: !!coords,
+    staleTime: 60_000,
+  });
+
+  const locate = useCallback(() => {
+    if (!window.isSecureContext) { setGeoState('unsupported'); return; }
+    if (!navigator.geolocation)  { setGeoState('unsupported'); return; }
+    setGeoState('loading');
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+        setGeoState('done');
+      },
+      err => setGeoState(err.code === 1 ? 'denied' : 'error'),
+      { enableHighAccuracy: true, timeout: 10_000 }
+    );
+  }, []);
+
+  if (geoState === 'idle') {
+    return (
+      <button
+        onClick={locate}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+          padding: '14px 16px', marginBottom: 16,
+          background: 'var(--v2-surface-2)', border: '1.5px dashed var(--v2-border)',
+          borderRadius: 'var(--v2-r-lg)', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+        }}
+      >
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--v2-brand)" strokeWidth="2" strokeLinecap="round">
+          <path d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7z"/>
+          <circle cx="12" cy="9" r="2.5"/>
+        </svg>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--v2-brand)' }}>Fermate vicino a me</div>
+          <div style={{ fontSize: 12, color: 'var(--v2-text-3)', marginTop: 2 }}>Usa il GPS per trovare fermate nelle vicinanze</div>
+        </div>
+      </button>
+    );
+  }
+
+  if (geoState === 'loading' || isFetching) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 0', color: 'var(--v2-text-3)', fontSize: 14 }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+        </svg>
+        Rilevamento posizione…
+      </div>
+    );
+  }
+
+  if (geoState === 'denied') {
+    return (
+      <div style={{ padding: '12px 14px', marginBottom: 12, background: '#fff5f5', border: '1px solid #fed7d7', borderRadius: 'var(--v2-r-md)', fontSize: 13, color: '#c53030' }}>
+        Accesso alla posizione negato — abilitalo nelle impostazioni del browser.
+      </div>
+    );
+  }
+
+  if (geoState === 'unsupported') {
+    return (
+      <div style={{ padding: '12px 14px', marginBottom: 12, background: 'var(--v2-surface-2)', borderRadius: 'var(--v2-r-md)', fontSize: 13, color: 'var(--v2-text-3)' }}>
+        La geolocalizzazione richiede HTTPS.
+      </div>
+    );
+  }
+
+  if (geoState === 'error') {
+    return (
+      <div style={{ padding: '12px 14px', marginBottom: 12, background: '#fff5f5', border: '1px solid #fed7d7', borderRadius: 'var(--v2-r-md)', fontSize: 13, color: '#c53030' }}>
+        Impossibile rilevare la posizione. Riprova.
+      </div>
+    );
+  }
+
+  const nearby = data?.stops ?? [];
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--v2-text-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          📍 Fermate vicine
+        </div>
+        <button
+          onClick={() => { setGeoState('idle'); setCoords(null); }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--v2-text-3)', padding: '2px 4px' }}
+        >
+          ✕
+        </button>
+      </div>
+      {nearby.length === 0
+        ? <div style={{ fontSize: 13, color: 'var(--v2-text-3)', padding: '8px 0' }}>Nessuna fermata trovata nelle vicinanze (600 m).</div>
+        : <div className="v2-list">
+            {nearby.map(s => (
+              <StopCardV2
+                key={s.stop_id}
+                stop={{ stopId: s.stop_id, stopName: s.stop_name, stopDesc: s.stop_desc }}
+                routes={s.routes}
+                distanceM={s.distanceKm != null ? Math.round(s.distanceKm * 1000) : undefined}
+              />
+            ))}
+          </div>
+      }
+    </div>
+  );
+}
+
 const TABS = ['Fermate', 'Linee'];
 
 // Chiave sessionStorage — si azzera alla chiusura del browser/tab
@@ -244,11 +364,15 @@ export default function SearchV2() {
 
         {/* Results */}
         {activeTab === 0 ? (
-        <StopsResults
-            stops={stops}
-            loading={stopsStatus === 'pending' && isFetching}
-            query={debouncedQuery}
-          />
+          <>
+            {/* Fermate vicino a me — solo quando la ricerca è vuota */}
+            {debouncedQuery.length < 2 && <NearbyStops />}
+            <StopsResults
+              stops={stops}
+              loading={stopsStatus === 'pending' && isFetching}
+              query={debouncedQuery}
+            />
+          </>
         ) : (
           <LinesExplorerV2 query={query} />
         )}

@@ -985,20 +985,25 @@ router.get('/plan', async (req, res) => {
 
     // OTP disponibile
     if (otpResult !== null) {
-      // Arricchisce ogni leg.from/to con stopCode e stopName dal DB locale
-      const stopCodeStmt = db.prepare('SELECT stop_code, stop_name FROM stops WHERE stop_id = ? LIMIT 1');
+      // OTP usa stop_code come identificatore interno (non stop_id).
+      // Lookup per stop_code → ottieni stop_id reale, stop_code e stop_name corretti.
+      const stopEnrichStmt = db.prepare(
+        'SELECT stop_id, stop_code, stop_name FROM stops WHERE stop_code = ? LIMIT 1'
+      );
       for (const itin of otpResult) {
         for (const leg of itin.legs) {
           if (leg.from.stopId) {
-            const r = stopCodeStmt.get(leg.from.stopId);
+            const r = stopEnrichStmt.get(leg.from.stopId);
             if (r) {
+              leg.from.stopId   = r.stop_id;            // stop_id reale del DB
               leg.from.stopCode = r.stop_code || null;
               leg.from.name     = r.stop_name || leg.from.name;
             }
           }
           if (leg.to.stopId) {
-            const r = stopCodeStmt.get(leg.to.stopId);
+            const r = stopEnrichStmt.get(leg.to.stopId);
             if (r) {
+              leg.to.stopId   = r.stop_id;              // stop_id reale del DB
               leg.to.stopCode = r.stop_code || null;
               leg.to.name     = r.stop_name || leg.to.name;
             }

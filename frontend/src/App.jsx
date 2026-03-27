@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { useEffect } from 'react';
+import { bootstrapReminders } from './utils/notifications';
 
 // Pagine V2 (interfaccia principale)
 import HomeV2          from './pages/v2/HomeV2';
@@ -7,6 +8,8 @@ import SearchV2        from './pages/v2/SearchV2';
 import StopDetailV2    from './pages/v2/StopDetailV2';
 import JourneyPlannerV2    from './pages/v2/JourneyPlannerV2';
 import ItineraryDetailV2  from './pages/v2/ItineraryDetailV2';
+import InfoV2           from './pages/v2/InfoV2';
+import RemindersV2     from './pages/v2/RemindersV2';
 import BottomNavV2     from './components/v2/BottomNavV2';
 
 // Pagine condivise (nessuna versione V2 dedicata)
@@ -25,6 +28,8 @@ function StopRedirect() {
 function ThemeInit() {
   useEffect(() => {
     document.getElementById('root')?.classList.add('theme-v2');
+    // Rilancia i reminder salvati prima del refresh
+    bootstrapReminders();
   }, []);
   return null;
 }
@@ -53,6 +58,12 @@ export default function App() {
           <Route path="/v2/journey"           element={<JourneyPlannerV2 />} />
           <Route path="/v2/journey/itinerary" element={<ItineraryDetailV2 />} />
           <Route path="/journey"              element={<Navigate to="/v2/journey" replace />} />
+
+          {/* Info servizio */}
+          <Route path="/v2/info" element={<InfoV2 />} />
+
+          {/* Promemoria */}
+          <Route path="/v2/reminders" element={<RemindersV2 />} />
 
           {/* Pagine condivise */}
           <Route path="/metro"               element={<Metro />} />

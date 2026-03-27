@@ -1,9 +1,11 @@
 /**
  * BottomNavV2.jsx (V2)
- * Bottom navigation con indicatore tema attivo.
+ * Bottom navigation con indicatore tema attivo e badge reminder.
  */
 
 import { NavLink } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { getUiReminders } from '../../utils/notifications';
 
 const TABS = [
   {
@@ -30,31 +32,6 @@ const TABS = [
     ),
   },
   {
-    to: '/map',
-    label: 'Mappa',
-    icon: (active) => (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.2 : 1.8}
-        strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="3,6 9,3 15,6 21,3 21,18 15,21 9,18 3,21"
-          fill={active ? 'currentColor' : 'none'} />
-        <line x1="9" y1="3" x2="9" y2="18" stroke={active ? 'white' : 'currentColor'} strokeWidth="1.5" />
-        <line x1="15" y1="6" x2="15" y2="21" stroke={active ? 'white' : 'currentColor'} strokeWidth="1.5" />
-      </svg>
-    ),
-  },
-  {
-    to: '/nearby',
-    label: 'Vicine',
-    icon: (active) => (
-      <svg viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'}
-        stroke="currentColor" strokeWidth={active ? 0 : 1.8}>
-        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"
-          fill={active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={active ? 0 : 1.8} />
-        <circle cx="12" cy="9" r="2.5" fill={active ? 'white' : 'currentColor'} stroke="none" />
-      </svg>
-    ),
-  },
-  {
     to: '/v2/journey',
     label: 'Tragitto',
     icon: (active) => (
@@ -67,19 +44,47 @@ const TABS = [
     ),
   },
   {
-    to: '/favorites',
-    label: 'Preferiti',
+    to: '/v2/reminders',
+    label: 'Reminder',
+    badge: true,
     icon: (active) => (
-      <svg viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'}
-        stroke="currentColor" strokeWidth={active ? 0 : 1.8}>
-        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14 2 9.27l6.91-1.01L12 2z"
-          strokeLinejoin="round" />
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth={active ? 2.2 : 1.8} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" fill={active ? 'currentColor' : 'none'} />
+        <path d="M13.73 21a2 2 0 01-3.46 0" stroke={active ? 'white' : 'currentColor'} />
+      </svg>
+    ),
+  },
+  {
+    to: '/v2/info',
+    label: 'Info',
+    icon: (active) => (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth={active ? 2.2 : 1.8} strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" fill={active ? 'currentColor' : 'none'} />
+        <line x1="12" y1="16" x2="12" y2="12" stroke={active ? 'white' : 'currentColor'} strokeWidth={active ? 2.2 : 1.8} />
+        <line x1="12" y1="8" x2="12.01" y2="8" stroke={active ? 'white' : 'currentColor'} strokeWidth={active ? 2.5 : 2} strokeLinecap="round" />
       </svg>
     ),
   },
 ];
 
 export default function BottomNavV2() {
+  const [reminderCount, setReminderCount] = useState(0);
+
+  useEffect(() => {
+    const update = () => {
+      const now = Date.now();
+      setReminderCount(getUiReminders().filter(r => r.fireAt > now).length);
+    };
+    update();
+    // Ricontrolla ogni minuto
+    const id = setInterval(update, 60_000);
+    // Aggiorna anche quando si torna sulla tab
+    window.addEventListener('focus', update);
+    return () => { clearInterval(id); window.removeEventListener('focus', update); };
+  }, []);
+
   return (
     <nav className="v2-bottom-nav" role="navigation" aria-label="Navigazione principale">
       {TABS.map(tab => (
@@ -88,13 +93,31 @@ export default function BottomNavV2() {
           to={tab.to}
           end={tab.end}
           className={({ isActive }) => `v2-nav-item${isActive ? ' active' : ''}`}
-          aria-label={tab.label}
+          aria-label={tab.badge && reminderCount > 0 ? `${tab.label} (${reminderCount})` : tab.label}
         >
           {({ isActive }) => (
-            <>
+            <div style={{ position: 'relative', display: 'inline-flex', flexDirection: 'column', alignItems: 'center' }}>
               {tab.icon(isActive)}
+              {tab.badge && reminderCount > 0 && (
+                <span style={{
+                  position: 'absolute',
+                  top: -4, right: -6,
+                  minWidth: 16, height: 16,
+                  background: '#ef4444',
+                  color: '#fff',
+                  borderRadius: 8,
+                  fontSize: 10,
+                  fontWeight: 800,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  padding: '0 4px',
+                  lineHeight: 1,
+                  border: '1.5px solid var(--v2-bg)',
+                }}>
+                  {reminderCount}
+                </span>
+              )}
               <span className="v2-nav-label">{tab.label}</span>
-            </>
+            </div>
           )}
         </NavLink>
       ))}

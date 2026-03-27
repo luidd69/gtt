@@ -798,3 +798,21 @@
   70%  { box-shadow: 0 0 0 12px rgba(255, 61, 32, 0); }
   100% { box-shadow: 0 0 0 0 rgba(255, 61, 32, 0); }
 }
+
+/* ─── Leaflet tooltip fermate percorso ─────────────────────── */
+.leaflet-tooltip.gtt-stop-tip {
+  background: rgba(13, 12, 10, 0.88);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 5px;
+  color: #F0EDE4;
+  font-family: 'Bricolage Grotesque', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  pointer-events: none;
+}
+.leaflet-tooltip.gtt-stop-tip::before {
+  border-top-color: rgba(13, 12, 10, 0.88);
+}

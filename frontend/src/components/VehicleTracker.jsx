@@ -35,9 +35,9 @@ export default function VehicleTracker({ vehicle, realtimeAvailable, routeColor,
   // Caso 3: veicolo trovato con posizione
   const color = routeColor || 'var(--color-brand)';
   const delayMin = summary?.delayMinutes;
-  const isDelayed = delayMin !== null && delayMin > 1;
-  const isEarly   = delayMin !== null && delayMin < -1;
-  const isOnTime  = delayMin !== null && !isDelayed && !isEarly;
+  const isDelayed = delayMin != null && delayMin > 1;
+  const isEarly   = delayMin != null && delayMin < -1;
+  const isOnTime  = delayMin != null && !isDelayed && !isEarly;
 
   const updatedTime = vehicle.timestamp
     ? new Date(vehicle.timestamp).toLocaleTimeString('it-IT', {
@@ -87,7 +87,7 @@ export default function VehicleTracker({ vehicle, realtimeAvailable, routeColor,
           <div className="text-sm fw-600">{vehicle.currentStatus}</div>
         </div>
 
-        {vehicle.speed !== null && (
+        {vehicle.speed != null && (
           <div>
             <div className="text-xs text-2">Velocità</div>
             <div className="text-sm fw-600">{vehicle.speed} km/h</div>

@@ -53,8 +53,8 @@ export default function StopCardV2({ stop, routes, distance }) {
                 key={r.route_id || r.routeId}
                 shortName={r.route_short_name || r.routeShortName}
                 routeType={r.route_type ?? r.routeType}
-                color={(r.route_color || r.routeColor) ? `#${r.route_color || r.routeColor}` : null}
-                textColor={(r.route_text_color || r.routeTextColor) ? `#${r.route_text_color || r.routeTextColor}` : null}
+                color={(r.route_color || r.routeColor) ? `#${(r.route_color || r.routeColor).replace(/^#/, '')}` : null}
+                textColor={(r.route_text_color || r.routeTextColor) ? `#${(r.route_text_color || r.routeTextColor).replace(/^#/, '')}` : null}
                 size="sm"
               />
             ))}

@@ -1,65 +1,61 @@
 /**
  * HomeV2.jsx (V2)
- * Homepage ridisegnata: header compatto, azioni a griglia,
- * percorsi recenti orizzontali, banner stato servizio.
+ * Homepage ridisegnata: header con saluto dinamico, hero search bar,
+ * banner alert compatto, quick actions 2x2, percorsi recenti, fermate preferite.
  */
 
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { getServiceStatus, getGtfsInfo } from '../../utils/api';
+import { getServiceStatus } from '../../utils/api';
 import useFavoritesStore from '../../store/favoritesStore';
 import StopCardV2 from '../../components/v2/StopCardV2';
 
-// SVG icons per le quick actions
+// ─── Icone SVG ─────────────────────────────────────────────────────────────────
+
 const IconRoute = () => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/>
     <path d="M6 17V9a3 3 0 0 1 3-3h6"/>
     <path d="M15 3l3 2-3 2"/>
   </svg>
 );
 const IconStop = () => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <rect x="3" y="3" width="18" height="18" rx="3"/>
     <path d="M3 9h18M9 21V9"/>
   </svg>
 );
-const IconNear = () => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7z"/>
-    <circle cx="12" cy="9" r="2.5"/>
-  </svg>
-);
-const IconMetro = () => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="5" width="18" height="14" rx="3"/>
-    <path d="M8 5v14M16 5v14M3 12h18"/>
-    <circle cx="7" cy="17" r="1.2" fill="currentColor" stroke="none"/>
-    <circle cx="17" cy="17" r="1.2" fill="currentColor" stroke="none"/>
-  </svg>
-);
 const IconMap = () => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/>
     <path d="M9 3v15M15 6v15"/>
   </svg>
 );
 const IconStar = () => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
   </svg>
 );
 
 const QUICK_ACTIONS = [
-  { to: '/v2/journey', Icon: IconRoute, label: 'Tragitto'  },
-  { to: '/v2/search',  Icon: IconStop,  label: 'Fermate'   },
-  { to: '/nearby',     Icon: IconNear,  label: 'Vicine'    },
-  { to: '/metro',      Icon: IconMetro, label: 'Metro'     },
-  { to: '/map',        Icon: IconMap,   label: 'Mappa live'},
-  { to: '/favorites',  Icon: IconStar,  label: 'Preferiti' },
+  { to: '/v2/journey', Icon: IconRoute, label: 'Tragitto',   color: '#e8432b' },
+  { to: '/v2/search',  Icon: IconStop,  label: 'Fermate',    color: '#2563eb' },
+  { to: '/map',        Icon: IconMap,   label: 'Mappa live', color: '#16a34a' },
+  { to: '/favorites',  Icon: IconStar,  label: 'Preferiti',  color: '#d97706' },
 ];
 
-function ServiceBanner() {
+// ─── Saluto dinamico ────────────────────────────────────────────────────────────
+
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return 'Buongiorno';
+  if (h >= 12 && h < 18) return 'Buon pomeriggio';
+  return 'Buona sera';
+}
+
+// ─── Banner alert compatto ──────────────────────────────────────────────────────
+
+function AlertBanner() {
   const { data } = useQuery({
     queryKey: ['service-status'],
     queryFn: getServiceStatus,
@@ -67,38 +63,121 @@ function ServiceBanner() {
     retry: 1,
   });
 
-  if (!data) return null;
-
-  if (!data.realtimeEnabled) {
-    return (
-      <div className="v2-notice info" style={{ margin: '0 var(--v2-sp-md)' }}>
-        <span>ℹ️</span>
-        <span>Orari programmati. Aggiornamenti realtime non disponibili.</span>
-      </div>
-    );
-  }
-
-  if (data.alerts?.length > 0) {
-    return (
-      <div className="v2-notice warning" style={{ margin: '0 var(--v2-sp-md)' }}>
-        <span>⚠️</span>
-        <div>
-          <div style={{ fontWeight: 700 }}>{data.alerts[0].header || 'Avvisi di servizio'}</div>
-          {data.alerts.length > 1 && (
-            <div style={{ fontSize: 12, marginTop: 2 }}>+{data.alerts.length - 1} altri avvisi</div>
-          )}
-        </div>
-      </div>
-    );
-  }
+  if (!data?.alerts?.length) return null;
 
   return (
-    <div className="v2-notice success" style={{ margin: '0 var(--v2-sp-md)' }}>
-      <span className="v2-rt-dot" />
-      <span style={{ fontWeight: 600 }}>Servizio regolare · realtime attivo</span>
+    <Link
+      to="/v2/info"
+      style={{ textDecoration: 'none', margin: '0 var(--v2-sp-md)', display: 'block' }}
+    >
+      <div className="v2-notice warning" style={{ cursor: 'pointer' }}>
+        <span>⚠️</span>
+        <span style={{ flex: 1, fontWeight: 600, fontSize: 14 }}>
+          {data.alerts.length === 1
+            ? '1 avviso attivo'
+            : `${data.alerts.length} avvisi attivi`}
+        </span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9 18l6-6-6-6"/>
+        </svg>
+      </div>
+    </Link>
+  );
+}
+
+// ─── Hero search bar ────────────────────────────────────────────────────────────
+
+function HeroSearch() {
+  const navigate = useNavigate();
+
+  return (
+    <div style={{ padding: '0 var(--v2-sp-md)' }}>
+      <button
+        onClick={() => navigate('/v2/journey')}
+        style={{
+          width: '100%',
+          background: 'var(--v2-surface-1)',
+          border: '1px solid var(--v2-border)',
+          borderRadius: 'var(--v2-r-lg, 16px)',
+          padding: '0',
+          cursor: 'pointer',
+          textAlign: 'left',
+          boxShadow: 'var(--v2-shadow-md, 0 4px 16px rgba(0,0,0,.1))',
+          overflow: 'hidden',
+          fontFamily: 'inherit',
+        }}
+        aria-label="Cerca tragitto"
+      >
+        {/* Campo Da */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '14px var(--v2-sp-md)',
+          borderBottom: '1px solid var(--v2-border)',
+        }}>
+          <span style={{
+            width: 10, height: 10, borderRadius: '50%',
+            border: '2.5px solid var(--v2-brand)',
+            flexShrink: 0,
+          }} />
+          <span style={{ fontSize: 15, color: 'var(--v2-text-3)' }}>Da dove parti?</span>
+        </div>
+        {/* Campo A */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '14px var(--v2-sp-md)',
+        }}>
+          <span style={{
+            width: 10, height: 10, borderRadius: 2,
+            background: 'var(--v2-brand)',
+            flexShrink: 0,
+          }} />
+          <span style={{ flex: 1, fontSize: 15, color: 'var(--v2-text-3)' }}>Dove vuoi andare?</span>
+          <span style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 32, height: 32, borderRadius: '50%',
+            background: 'var(--v2-brand)',
+            color: '#fff',
+            flexShrink: 0,
+          }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </span>
+        </div>
+      </button>
     </div>
   );
 }
+
+// ─── Quick actions 2×2 ──────────────────────────────────────────────────────────
+
+function QuickActions() {
+  return (
+    <section>
+      <div className="v2-section-label">Funzioni</div>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(2, 1fr)',
+        gap: 10,
+        padding: '0 var(--v2-sp-md)',
+      }}>
+        {QUICK_ACTIONS.map((a, i) => (
+          <Link
+            key={a.to}
+            to={a.to}
+            className={`v2-tile v2-animate-in v2-animate-in-d${Math.min(i + 1, 6)}`}
+            style={{ textDecoration: 'none' }}
+          >
+            <span className="v2-tile-icon" style={{ color: a.color }}><a.Icon /></span>
+            <span className="v2-tile-label">{a.label}</span>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ─── Percorsi recenti ──────────────────────────────────────────────────────────
 
 function FrequentRoutes() {
   const getTopFrequentRoutes = useFavoritesStore(s => s.getTopFrequentRoutes);
@@ -137,7 +216,7 @@ function FrequentRoutes() {
                 {r.fromStop.stopName}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ fontSize: 10, color: 'var(--v2-text-3)' }}>↓</span>
+                <span style={{ fontSize: 11, color: 'var(--v2-text-3)' }}>→</span>
                 <div className="v2-truncate" style={{ fontSize: 12, color: 'var(--v2-text-2)' }}>
                   {r.toStop.stopName}
                 </div>
@@ -149,6 +228,8 @@ function FrequentRoutes() {
     </section>
   );
 }
+
+// ─── Fermate preferite ─────────────────────────────────────────────────────────
 
 function FavoriteStops() {
   const stops = useFavoritesStore(s => s.stops);
@@ -174,31 +255,11 @@ function FavoriteStops() {
   );
 }
 
-function GtfsFooter() {
-  const { data } = useQuery({
-    queryKey: ['gtfs-info'],
-    queryFn: getGtfsInfo,
-    staleTime: 5 * 60_000,
-    retry: 1,
-  });
-
-  if (!data?.loaded) return null;
-
-  const date = data.loadedAt
-    ? new Date(data.loadedAt).toLocaleDateString('it-IT', { day: '2-digit', month: 'long' })
-    : '—';
-
-  return (
-    <div style={{ padding: 'var(--v2-sp-md)', paddingBottom: 'var(--v2-sp-xl)', textAlign: 'center' }}>
-      <p style={{ fontSize: 11, color: 'var(--v2-text-3)', lineHeight: 1.5 }}>
-        GTFS aggiornato al {date} · {data.stats?.stops?.toLocaleString('it-IT')} fermate ·{' '}
-        {data.stats?.routes?.toLocaleString('it-IT')} linee
-      </p>
-    </div>
-  );
-}
+// ─── Home ──────────────────────────────────────────────────────────────────────
 
 export default function HomeV2() {
+  const greeting = getGreeting();
+
   return (
     <div className="v2-page">
       {/* Header */}
@@ -217,7 +278,7 @@ export default function HomeV2() {
           <div style={{ flex: 1 }}>
             <div className="v2-title" style={{ fontSize: 19 }}>GTT Torino</div>
             <div className="v2-subtitle">
-              {new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })}
+              {greeting} · {new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })}
             </div>
           </div>
           <button
@@ -237,7 +298,6 @@ export default function HomeV2() {
             onMouseEnter={e => { e.currentTarget.style.background = 'var(--v2-delayed-heavy-bg)'; e.currentTarget.style.color = 'var(--v2-delayed-heavy)'; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'var(--v2-surface-2)'; e.currentTarget.style.color = 'var(--v2-text-3)'; }}
           >
-            {/* Power/X icon */}
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M18 6L6 18M6 6l12 12"/>
@@ -246,41 +306,21 @@ export default function HomeV2() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--v2-sp-md)', paddingTop: 'var(--v2-sp-md)' }}>
-        {/* Stato servizio */}
-        <ServiceBanner />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--v2-sp-md)', paddingTop: 'var(--v2-sp-md)', paddingBottom: 'var(--v2-sp-xl)' }}>
+        {/* Hero search */}
+        <HeroSearch />
 
-        {/* Quick Actions */}
-        <section>
-          <div className="v2-section-label">Funzioni</div>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: 10,
-            padding: '0 var(--v2-sp-md)',
-          }}>
-            {QUICK_ACTIONS.map((a, i) => (
-              <Link
-                key={a.to}
-                to={a.to}
-                className={`v2-tile v2-animate-in v2-animate-in-d${Math.min(i + 1, 6)}`}
-                style={{ textDecoration: 'none' }}
-              >
-                <span className="v2-tile-icon"><a.Icon /></span>
-                <span className="v2-tile-label">{a.label}</span>
-              </Link>
-            ))}
-          </div>
-        </section>
+        {/* Banner avvisi (solo se presenti) */}
+        <AlertBanner />
+
+        {/* Quick actions 2x2 */}
+        <QuickActions />
 
         {/* Percorsi recenti */}
         <FrequentRoutes />
 
         {/* Fermate preferite */}
         <FavoriteStops />
-
-        {/* Footer GTFS */}
-        <GtfsFooter />
       </div>
     </div>
   );

@@ -262,7 +262,7 @@ query OtpPlan(
         duration
         realTime
         distance
-        intermediateStops { name gtfsId }
+        intermediateStops { name gtfsId lat lon }
         from { name lat lon stop { gtfsId name } }
         to   { name lat lon stop { gtfsId name } }
         route { gtfsId shortName longName color textColor mode }
@@ -351,10 +351,14 @@ async function getOtpPlan(fromLat, fromLon, toLat, toLon, options = {}) {
           from: {
             name:   leg.from?.stop?.name || leg.from?.name || '',
             stopId: stripOtpPrefix(leg.from?.stop?.gtfsId),
+            lat:    leg.from?.lat ?? null,
+            lon:    leg.from?.lon ?? null,
           },
           to: {
             name:   leg.to?.stop?.name || leg.to?.name || '',
             stopId: stripOtpPrefix(leg.to?.stop?.gtfsId),
+            lat:    leg.to?.lat ?? null,
+            lon:    leg.to?.lon ?? null,
           },
           route: (isWalk || !r) ? null : {
             shortName: r.shortName || '',
@@ -365,6 +369,12 @@ async function getOtpPlan(fromLat, fromLon, toLat, toLon, options = {}) {
           },
           headsign:   leg.trip?.tripHeadsign || null,
           stopsCount: (leg.intermediateStops?.length ?? 0) + 1,
+          intermediateStops: leg.intermediateStops?.map(s => ({
+            name:   s.name,
+            stopId: stripOtpPrefix(s.gtfsId),
+            lat:    s.lat ?? null,
+            lon:    s.lon ?? null,
+          })) ?? [],
           tripId: stripOtpPrefix(leg.trip?.gtfsId),
         };
       });

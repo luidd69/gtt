@@ -145,7 +145,7 @@ function ArrivalsV2({ stopId }) {
         ) : (
           <div className="v2-list">
             {searchResult.arrivals.map((a, i) => (
-              <ArrivalRow key={i} arrival={a} fetchedAt={null} />
+              <ArrivalRow key={i} arrival={a} fetchedAt={null} stopId={stopId} />
             ))}
           </div>
         )}
@@ -250,7 +250,7 @@ function ArrivalsV2({ stopId }) {
       {pickerSection}
 
       <div className="v2-list">
-        {arrivals.map((a, i) => <ArrivalRow key={i} arrival={a} fetchedAt={dataUpdatedAt} />)}
+        {arrivals.map((a, i) => <ArrivalRow key={i} arrival={a} fetchedAt={dataUpdatedAt} stopId={stopId} />)}
       </div>
     </div>
   );

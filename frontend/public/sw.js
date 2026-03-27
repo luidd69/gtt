@@ -89,3 +89,30 @@ async function cacheFirst(request) {
     return new Response('Offline', { status: 503 });
   }
 }
+
+// ─── Push Notifications ───────────────────────────────────────────────────────
+
+// Riceve la push dal backend e mostra la notifica (funziona anche ad app chiusa)
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data?.json() ?? {}; } catch {}
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'GTT', {
+      body: data.body || '',
+      icon: '/favicon.ico',
+      badge: '/favicon.ico',
+      tag: data.tag || 'gtt-reminder',
+      renotify: true,
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+      if (clients.length > 0) return clients[0].focus();
+      return self.clients.openWindow('/');
+    })
+  );
+});

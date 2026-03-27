@@ -15,7 +15,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { getVehicles, getNearbyStops, getTripLive, getArrivals } from '../utils/api';
+import { getVehicles, getNearbyStops, getTripLive, getArrivals, getStop } from '../utils/api';
 import { getRouteTypeInfo } from '../utils/formatters';
 
 const TURIN_CENTER = [45.0703, 7.6869];
@@ -92,15 +92,13 @@ function buildVehicleIcon(L, v, isTracked) {
 }
 
 /* ── Icona fermata ────────────────────────────────────────────────── */
-function buildStopIcon(L) {
+function buildStopIcon(L, size = 10, color = '#E84B24') {
   return L.divIcon({
-    html: `<div style="width:10px;height:10px;border-radius:50%;
-                background:#E84B24;border:2px solid white;
-                box-shadow:0 1px 3px rgba(0,0,0,0.4)"></div>`,
+    html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.4)"></div>`,
     className: '',
-    iconSize:   [10, 10],
-    iconAnchor: [5, 5],
-    popupAnchor:[0, -8],
+    iconSize:   [size, size],
+    iconAnchor: [size/2, size/2],
+    popupAnchor:[0, -size/2 - 2],
   });
 }
 
@@ -155,6 +153,7 @@ export default function VehicleMap() {
   const [searchParams]  = useSearchParams();
   const navigate        = useNavigate();
   const requestedTripId = searchParams.get('tripId'); // tripId dall'arrivo cliccato
+  const requestedStopId = searchParams.get('stopId'); // fermata da evidenziare
 
   const mapRef          = useRef(null);
   const mapElRef        = useRef(null);
@@ -166,6 +165,7 @@ export default function VehicleMap() {
   const trackedIdRef    = useRef(null);    // id del veicolo tracciato
   const tripTrackedRef  = useRef(false);   // già attivato tracking per tripId (veicolo REALE)
   const routeCenteredRef = useRef(false);  // già centrato sulla rotta stimata
+  const requestedStopMarkerRef = useRef(null); // marker fermata evidenziata da URL
 
   const [filter,        setFilter]        = useState('all');
   const [mapReady,      setMapReady]      = useState(false);
@@ -231,6 +231,14 @@ export default function VehicleMap() {
     staleTime:       15_000,
   });
 
+  /* ── Fetch dati fermata da evidenziare (da URL stopId) ──────────── */
+  const { data: requestedStopData } = useQuery({
+    queryKey: ['stop', requestedStopId],
+    queryFn:  () => getStop(requestedStopId),
+    enabled:  !!requestedStopId,
+    staleTime: 10 * 60_000,
+  });
+
   /* ── Fetch arrivi per fermata selezionata dalla ricerca ─────────── */
   const { data: stopArrivalsData, isLoading: arrivalsLoading } = useQuery({
     queryKey: ['stop-arrivals-map', selectedStop?.stop_id],
@@ -244,7 +252,14 @@ export default function VehicleMap() {
   useEffect(() => {
     if (mapRef.current || !mapElRef.current) return;
 
+    // Guard against React StrictMode double-invocation: if the cleanup fires
+    // before the dynamic import resolves, `cancelled` will be true and the
+    // async callback won't try to initialize an already-removed container.
+    let cancelled = false;
+
     import('leaflet').then(L => {
+      if (cancelled || mapRef.current || !mapElRef.current) return;
+
       delete L.Icon.Default.prototype._getIconUrl;
       leafletRef.current = L;
 
@@ -287,6 +302,8 @@ export default function VehicleMap() {
     });
 
     return () => {
+      cancelled = true;
+      clearTimeout(searchTimerRef.current);
       delete window.__gttTrack;
       if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
     };
@@ -352,6 +369,46 @@ export default function VehicleMap() {
     }
   }, [userPos]);
 
+  /* ── Marker fermata evidenziata da URL ──────────────────────────── */
+  useEffect(() => {
+    const L = leafletRef.current;
+    const map = mapRef.current;
+    if (!L || !map || !requestedStopData?.stop) return;
+
+    const stop = requestedStopData.stop;
+    if (!stop.stop_lat || !stop.stop_lon) return;
+
+    if (requestedStopMarkerRef.current) {
+      requestedStopMarkerRef.current.remove();
+      requestedStopMarkerRef.current = null;
+    }
+
+    const stopName = stop.stop_name?.replace(/Fermata \d+ - /i, '') || stop.stop_name;
+
+    const icon = L.divIcon({
+      html: `<div style="
+        width:22px;height:22px;border-radius:50%;
+        background:#FF3D20;border:3px solid white;
+        box-shadow:0 0 0 7px rgba(255,61,32,0.25),0 2px 8px rgba(0,0,0,0.4);
+      "></div>`,
+      className: '',
+      iconSize:   [22, 22],
+      iconAnchor: [11, 11],
+    });
+
+    requestedStopMarkerRef.current = L.marker(
+      [stop.stop_lat, stop.stop_lon],
+      { icon, zIndexOffset: 2500 }
+    )
+      .bindTooltip(stopName, {
+        permanent: true,
+        direction: 'top',
+        offset: [0, -16],
+      })
+      .addTo(map);
+
+  }, [requestedStopData, mapReady]);
+
   /* Aggiorna il callback globale quando vehicleData cambia */
   useEffect(() => {
     window.__gttTrack = (id) => {
@@ -371,7 +428,7 @@ export default function VehicleMap() {
     try {
       const { stops } = await getNearbyStops(c.lat, c.lng, 0.6);
       stopLayerRef.current.clearLayers();
-      const icon = buildStopIcon(L);
+      const icon = buildStopIcon(L, 10, '#E84B24');
       stops.forEach(s => {
         if (!s.stop_lat || !s.stop_lon) return;
         const name = s.stop_name?.replace(/Fermata \d+ - /i, '') || s.stop_name;
@@ -431,14 +488,18 @@ export default function VehicleMap() {
         .addTo(routeLayerRef.current);
     }
 
-    // Marker piccoli fermate
-    const stopIcon = L.divIcon({
-      html: `<div style="width:7px;height:7px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.3)"></div>`,
-      className: '', iconSize: [7, 7], iconAnchor: [3.5, 3.5],
-    });
-    stops.forEach(s => {
-      L.marker([s.lat, s.lon], { icon: stopIcon })
-        .bindTooltip(s.name, { direction: 'top', offset: [0, -6] })
+    // Marker fermate percorso: dot colorati, popup al click con nome (stesso stile tab Mappa)
+    stops.forEach((s, i) => {
+      const isEndpoint = (i === 0 || i === stops.length - 1);
+      const dotSz = isEndpoint ? 12 : 7;
+      const dotColor = s.passed ? '#AEAEB2' : color;
+      const icon = buildStopIcon(L, dotSz, dotColor);
+      const stopLabel = s.name || '';
+      L.marker([s.lat, s.lon], { icon, zIndexOffset: isEndpoint ? 100 : 0 })
+        .bindPopup(`<div style="font-family:-apple-system,sans-serif;min-width:140px">
+          <b style="font-size:13px">${stopLabel}</b>
+          ${isEndpoint ? `<div style="font-size:11px;color:#8E8E93;margin-top:4px">${i === 0 ? '🟢 Partenza' : '🏁 Arrivo'}</div>` : ''}
+        </div>`, { maxWidth: 200 })
         .addTo(routeLayerRef.current);
     });
 
