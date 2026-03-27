@@ -46,6 +46,21 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, __) => const VehicleMapScreen(),
       ),
       GoRoute(
+        path: '/trips/:tripId',
+        builder: (_, state) {
+          final tripId = state.pathParameters['tripId']!;
+          return Scaffold(
+            appBar: AppBar(title: Text('Corsa $tripId')),
+            body: Center(
+              child: Text(
+                'Dettaglio corsa non disponibile',
+                style: const TextStyle(fontSize: 16),
+              ),
+            ),
+          );
+        },
+      ),
+      GoRoute(
         path: '/reminders',
         builder: (_, __) => const RemindersScreen(),
       ),

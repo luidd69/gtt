@@ -110,6 +110,7 @@ class _ArrivalRowState extends ConsumerState<ArrivalRow> {
                 const SizedBox(width: 8),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       a.displayTime,

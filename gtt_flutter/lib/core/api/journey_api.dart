@@ -50,7 +50,10 @@ class JourneyApi {
     if (departAt != null) params['departAt'] = departAt;
 
     final res = await _dio.get('/journey/search', queryParameters: params);
-    final list = (res.data['itineraries'] ?? res.data) as List;
+    final data = res.data;
+    // backend ritorna { journeys: [...] } oppure { itineraries: [...] }
+    final raw = data['journeys'] ?? data['itineraries'] ?? data;
+    final list = raw as List;
     return list
         .map((e) => Itinerary.fromJson(e as Map<String, dynamic>))
         .toList();
