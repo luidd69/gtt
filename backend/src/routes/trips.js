@@ -73,7 +73,11 @@ function todayRome() {
  *     currentStop, nextStop, route, stops[], isRealtime, estimatedAt }
  */
 router.get('/:tripId/live', async (req, res) => {
-  const { tripId } = req.params;
+  const rawTripId = req.params.tripId;
+  // Normalizza: MQTT usa ID numerici (es "27956054"), OTP usa formato "gtt:27956054U"
+  // Rimuoviamo il suffisso U se presente, poi lo aggiungiamo nel prefisso gtt:
+  const baseTripId = rawTripId.endsWith('U') ? rawTripId.slice(0, -1) : rawTripId;
+  const tripId = /^\d+$/.test(baseTripId) ? `${baseTripId}U` : rawTripId;
   const date       = todayRome();
   const cacheKey   = `${tripId}:${date}`;
   const now        = Date.now();

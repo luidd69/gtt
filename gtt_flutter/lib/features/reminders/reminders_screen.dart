@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/reminder.dart';
+import '../../core/services/notification_service.dart';
 import '../../core/theme/colors.dart';
 import '../../widgets/bottom_nav.dart';
+import '../../widgets/loading_shimmer.dart';
+import '../../widgets/route_chip.dart';
 import 'reminders_provider.dart';
 
 class RemindersScreen extends ConsumerWidget {
@@ -14,8 +17,70 @@ class RemindersScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: AppColors.brand,
+        foregroundColor: Colors.white,
         title: const Text('Promemoria', style: TextStyle(fontWeight: FontWeight.w700)),
         actions: [
+          // ── PULSANTE TEST ──────────────────────────────────────────────
+          IconButton(
+            icon: const Icon(Icons.bug_report_outlined),
+            tooltip: 'Test notifica + FCM token',
+            onPressed: () async {
+              final svc = ref.read(notificationServiceProvider);
+
+              // 1) Notifica IMMEDIATA (non schedulata)
+              await svc.showLocalNotification(
+                id: 999998,
+                title: '✅ Test IMMEDIATO GTT',
+                body: 'Se vedi questo, le notifiche immediate funzionano!',
+              );
+
+              // 2) Notifica schedulata a 10s
+              final fireAt = DateTime.now().add(const Duration(seconds: 10));
+              await svc.scheduleLocalNotification(
+                id: 999999,
+                title: '⏱ Test SCHEDULATO GTT',
+                body: 'Notifica schedulata — arrivata dopo 10 secondi!',
+                fireAt: fireAt,
+              );
+
+              // 3) Ottieni e loga il token FCM
+              final token = await svc.getFcmToken();
+              // ignore: avoid_print
+              print('[GTT_FCM_TOKEN] $token');
+
+              if (context.mounted) {
+                showDialog(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    title: const Text('🔔 Test Avviato'),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('• Notifica immediata inviata'),
+                        const Text('• Notifica 10s schedulata'),
+                        const SizedBox(height: 12),
+                        const Text('FCM Token:', style: TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        SelectableText(
+                          token ?? 'Token non disponibile',
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                      ],
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('OK'),
+                      ),
+                    ],
+                  ),
+                );
+              }
+            },
+          ),
+          // ──────────────────────────────────────────────────────────────
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => ref.read(remindersProvider.notifier).refresh(),
@@ -54,7 +119,16 @@ class RemindersScreen extends ConsumerWidget {
             ],
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
+          children: List.generate(
+            5,
+            (_) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: LoadingShimmer.card(),
+            ),
+          ),
+        ),
         error: (e, _) => Center(
           child: Text('Errore: $e',
               style: const TextStyle(color: AppColors.delayHeavy)),
@@ -77,7 +151,7 @@ class _SectionHeader extends StatelessWidget {
           style: Theme.of(context)
               .textTheme
               .titleSmall
-              ?.copyWith(fontWeight: FontWeight.w700, color: AppColors.text2),
+              ?.copyWith(fontWeight: FontWeight.w700),
         ),
       );
 }
@@ -126,18 +200,39 @@ class _ReminderCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Linea ${reminder.routeShortName} — ${reminder.scheduledTime}',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                    color: isPast ? AppColors.text3 : null,
-                  ),
+                Row(
+                  children: [
+                    RouteChip(
+                      shortName: reminder.routeShortName,
+                      small: true,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        reminder.scheduledTime,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                          color: isPast
+                              ? Theme.of(context).colorScheme.onSurface.withAlpha(100)
+                              : Theme.of(context).colorScheme.onSurface,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 2),
                 Text(
                   reminder.stopName,
-                  style: const TextStyle(color: AppColors.text2, fontSize: 13),
+                  style: TextStyle(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withAlpha(isPast ? 100 : 220),
+                    fontSize: 13,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Row(
@@ -159,7 +254,10 @@ class _ReminderCard extends StatelessWidget {
                     const SizedBox(width: 8),
                     Text(
                       '${reminder.minutesBefore} min prima',
-                      style: const TextStyle(fontSize: 12, color: AppColors.text3),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -211,19 +309,20 @@ class _EmptyView extends StatelessWidget {
           children: [
             const Icon(Icons.notifications_none, size: 64, color: AppColors.text3),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Nessun promemoria',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
-                color: AppColors.text2,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               'Tocca ⏰ su un arrivo per impostare\nun promemoria di partenza.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.text3),
+              style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
           ],
         ),

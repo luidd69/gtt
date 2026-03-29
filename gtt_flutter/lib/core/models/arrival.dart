@@ -8,8 +8,12 @@ class Arrival {
   final String? realtimeTime;
   final bool isRealtime;
   final int? delaySeconds;
+  final int? waitMinutes;
+  final String? dataType;
   final String? tripId;
   final String? vehicleId;
+  final bool canceled;
+  final bool nextDay;
 
   const Arrival({
     required this.routeId,
@@ -21,8 +25,12 @@ class Arrival {
     this.routeTextColor,
     this.realtimeTime,
     this.delaySeconds,
+    this.waitMinutes,
+    this.dataType,
     this.tripId,
     this.vehicleId,
+    this.canceled = false,
+    this.nextDay = false,
   });
 
   String get displayTime => realtimeTime ?? scheduledTime;
@@ -41,9 +49,19 @@ class Arrival {
         headsign: json['headsign'] ?? json['tripHeadsign'] ?? '',
         scheduledTime: json['scheduledTime'] ?? json['departureTime'] ?? '',
         realtimeTime: json['realtimeTime'],
-        isRealtime: json['isRealtime'] as bool? ?? false,
-        delaySeconds: json['delaySeconds'],
+        isRealtime: (json['isRealtime'] as bool?) ??
+            (json['dataType']?.toString().toLowerCase() == 'realtime'),
+        delaySeconds: json['delaySeconds'] ??
+            ((json['delayMinutes'] is num)
+                ? ((json['delayMinutes'] as num) * 60).round()
+                : null),
+        waitMinutes: (json['waitMinutes'] is num)
+            ? (json['waitMinutes'] as num).toInt()
+            : null,
+        dataType: json['dataType']?.toString(),
         tripId: json['tripId'],
         vehicleId: json['vehicleId'],
+        canceled: json['canceled'] as bool? ?? false,
+        nextDay: json['nextDay'] as bool? ?? false,
       );
 }

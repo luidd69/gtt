@@ -1,0 +1,1 @@
+/home/luidd/gtt/gtt_flutter/android/app/build/intermediates/cxx/release/1oj2s3m1/obj/x86_64

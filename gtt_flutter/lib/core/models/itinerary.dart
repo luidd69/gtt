@@ -24,7 +24,10 @@ class Itinerary {
   factory Itinerary.fromJson(Map<String, dynamic> json) => Itinerary(
         departureTime: json['departureTime'] ?? '',
         arrivalTime: json['arrivalTime'] ?? '',
-        durationSeconds: (json['durationSeconds'] ?? json['duration'] ?? 0) as int,
+        durationSeconds: (json['durationSeconds'] ??
+                json['duration'] ??
+                ((json['durationMin'] ?? 0) as num) * 60)
+            .toInt(),
         transfers: (json['transfers'] ?? 0) as int,
         legs: (json['legs'] as List? ?? [])
             .map((l) => Leg.fromJson(l as Map<String, dynamic>))

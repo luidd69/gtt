@@ -56,6 +56,20 @@ const TABS = [
     ),
   },
   {
+    to: '/metro',
+    label: 'Metro',
+    icon: (active) => (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth={active ? 2.2 : 1.8} strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="6" width="20" height="13" rx="3"
+          fill={active ? 'currentColor' : 'none'} />
+        <path d="M8 19v2M16 19v2" stroke={active ? 'white' : 'currentColor'} strokeWidth="1.8" />
+        <path d="M6 15V9l3 4 3-4v6M15 9h3M16.5 12h1.5M15 15h3"
+          stroke={active ? 'white' : 'currentColor'} strokeWidth="1.5" />
+      </svg>
+    ),
+  },
+  {
     to: '/v2/info',
     label: 'Info',
     icon: (active) => (

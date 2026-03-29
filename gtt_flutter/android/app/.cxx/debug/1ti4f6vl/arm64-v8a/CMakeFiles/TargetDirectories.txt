@@ -1,0 +1,2 @@
+/home/luidd/gtt/gtt_flutter/android/app/.cxx/debug/1ti4f6vl/arm64-v8a/CMakeFiles/edit_cache.dir
+/home/luidd/gtt/gtt_flutter/android/app/.cxx/debug/1ti4f6vl/arm64-v8a/CMakeFiles/rebuild_cache.dir

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/api/journey_api.dart';
 import '../../core/providers/favorites_provider.dart';
-import '../../core/providers/location_provider.dart';
 import '../../widgets/bottom_nav.dart';
 import '../../widgets/stop_card.dart';
 import '../../widgets/loading_shimmer.dart';
@@ -27,9 +27,15 @@ class _QuickAction {
 
 const _quickActions = [
   _QuickAction('/journey', Icons.route_rounded, 'Tragitto', Color(0xFFE8431B)),
+  _QuickAction('/metro', Icons.train_rounded, 'Metro', Color(0xFFDC2626)),
+  _QuickAction('/lines', Icons.alt_route_rounded, 'Linee', Color(0xFF2563EB)),
   _QuickAction('/search', Icons.search_rounded, 'Fermate', AppColors.brand),
+  _QuickAction('/nearby', Icons.near_me_rounded, 'Vicino', Color(0xFF0F766E)),
+  _QuickAction(
+      '/favorites', Icons.star_rounded, 'Preferiti', Color(0xFFD97706)),
   _QuickAction('/map', Icons.map_rounded, 'Mappa live', AppColors.onTime),
-  _QuickAction('/reminders', Icons.notifications_rounded, 'Promemoria', Color(0xFFD97706)),
+  _QuickAction('/reminders', Icons.notifications_rounded, 'Promemoria',
+      Color(0xFFD97706)),
 ];
 
 class HomeScreen extends ConsumerWidget {
@@ -44,62 +50,137 @@ class HomeScreen extends ConsumerWidget {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          SliverAppBar(
-            floating: true,
-            snap: true,
-            title: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _greeting(),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.text3,
-                      ),
+          // ─── Hero Header ─────────────────────────────────────────────────
+          SliverToBoxAdapter(
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF1D4ED8), Color(0xFF1E40AF)],
                 ),
-                const Text(
-                  'GTT Torino',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20),
-                ),
-              ],
-            ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.settings_outlined),
-                onPressed: () => context.push('/settings'),
               ),
-            ],
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _greeting(),
+                                  style: const TextStyle(
+                                    color: Color(0xFFBFDBFE),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const Text(
+                                  'GTT Torino',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 24,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.settings_outlined,
+                                color: Colors.white70),
+                            onPressed: () => context.push('/settings'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      // Search bar integrata nell'header
+                      GestureDetector(
+                        onTap: () => context.push('/search'),
+                        child: Hero(
+                          tag: 'search_bar',
+                          child: AbsorbPointer(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white.withAlpha(230),
+                                borderRadius: BorderRadius.circular(14),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withAlpha(30),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: const TextField(
+                                enabled: false,
+                                decoration: InputDecoration(
+                                  hintText: 'Cerca fermata, linea o luogo…',
+                                  hintStyle: TextStyle(
+                                    color: AppColors.text2,
+                                    fontSize: 15,
+                                  ),
+                                  prefixIcon: Icon(Icons.search,
+                                      color: AppColors.brand, size: 22),
+                                  border: InputBorder.none,
+                                  filled: false,
+                                  contentPadding:
+                                      EdgeInsets.symmetric(vertical: 14),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
-          // Alert banner
+          // ─── Alert banner ─────────────────────────────────────────────────
           statusAsync.when(
             data: (status) {
-              if (status.alerts.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
+              if (status.alerts.isEmpty)
+                return const SliverToBoxAdapter(child: SizedBox.shrink());
               return SliverToBoxAdapter(
                 child: GestureDetector(
-                  onTap: () => context.go('/info'),
+                  onTap: () => context.push('/info'),
                   child: Container(
-                    margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 11),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFEF3C7),
+                      color: AppColors.delayLightBg,
                       borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: AppColors.delayLight.withAlpha(80), width: 1),
                     ),
                     child: Row(
                       children: [
-                        const Text('⚠️', style: TextStyle(fontSize: 18)),
+                        const Icon(Icons.warning_amber_rounded,
+                            color: AppColors.delayLight, size: 18),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             status.alerts.length == 1
-                                ? '1 avviso attivo'
-                                : '${status.alerts.length} avvisi attivi',
+                                ? '1 avviso di servizio attivo'
+                                : '${status.alerts.length} avvisi di servizio attivi',
                             style: const TextStyle(
                               color: Color(0xFF92400E),
                               fontWeight: FontWeight.w600,
-                              fontSize: 14,
+                              fontSize: 13,
                             ),
                           ),
                         ),
-                        const Icon(Icons.chevron_right, color: Color(0xFF92400E), size: 18),
+                        const Icon(Icons.chevron_right,
+                            color: Color(0xFF92400E), size: 18),
                       ],
                     ),
                   ),
@@ -107,84 +188,146 @@ class HomeScreen extends ConsumerWidget {
               );
             },
             loading: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
-            error: (_, __) => const SliverToBoxAdapter(child: SizedBox.shrink()),
+            error: (_, __) =>
+                const SliverToBoxAdapter(child: SizedBox.shrink()),
           ),
-          // Hero search bar
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              child: GestureDetector(
-                onTap: () => context.go('/search'),
-                child: Hero(
-                  tag: 'search_bar',
-                  child: AbsorbPointer(
-                    child: TextField(
-                      decoration: InputDecoration(
-                        hintText: 'Cerca fermata o linea…',
-                        prefixIcon: const Icon(Icons.search, color: AppColors.text3),
-                        hintStyle: const TextStyle(color: AppColors.text3),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: const BorderSide(color: AppColors.divider),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          // Quick actions grid
+          // ─── Quick actions ────────────────────────────────────────────────
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Azioni rapide',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w700, color: AppColors.text2),
+                  const Text(
+                    'ACCESSO RAPIDO',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.text3,
+                      letterSpacing: 0.8,
+                    ),
                   ),
                   const SizedBox(height: 10),
                   GridView.count(
                     crossAxisCount: 4,
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    mainAxisSpacing: 8,
-                    crossAxisSpacing: 8,
-                    children: _quickActions.map((a) => _QuickActionTile(action: a)).toList(),
+                    mainAxisSpacing: 10,
+                    crossAxisSpacing: 10,
+                    childAspectRatio: 0.9,
+                    children: _quickActions
+                        .map((a) => _QuickActionTile(action: a))
+                        .toList(),
                   ),
                 ],
               ),
             ),
           ),
-          // Fermate preferite
+          // ─── Fermate preferite ────────────────────────────────────────────
           favAsync.when(
             data: (state) {
-              if (state.favorites.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
+              if (state.favorites.isEmpty)
+                return const SliverToBoxAdapter(child: SizedBox.shrink());
               return _SectionSliver(
                 title: 'Fermate preferite',
                 stops: state.favorites,
               );
             },
             loading: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
-            error: (_, __) => const SliverToBoxAdapter(child: SizedBox.shrink()),
+            error: (_, __) =>
+                const SliverToBoxAdapter(child: SizedBox.shrink()),
           ),
-          // Fermate vicine
+          // ─── Percorsi frequenti ───────────────────────────────────────────
+          favAsync.when(
+            data: (state) {
+              final routes = state.frequentRoutes.take(3).toList();
+              if (routes.isEmpty)
+                return const SliverToBoxAdapter(child: SizedBox.shrink());
+              return SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 20, 16, 8),
+                      child: Text(
+                        'PERCORSI FREQUENTI',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.text3,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ),
+                    ...routes.map((r) => Container(
+                          margin: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface1,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                                color: AppColors.divider, width: 0.8),
+                          ),
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 4),
+                            leading: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: AppColors.brand.withAlpha(20),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(Icons.route_rounded,
+                                  color: AppColors.brand, size: 20),
+                            ),
+                            title: Text(
+                              '${r.fromName} → ${r.toName}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontSize: 14, fontWeight: FontWeight.w600),
+                            ),
+                            subtitle: Text(
+                              '${r.usageCount} volt${r.usageCount == 1 ? 'a' : 'e'}',
+                              style: const TextStyle(
+                                  fontSize: 12, color: AppColors.text3),
+                            ),
+                            trailing: const Icon(Icons.chevron_right,
+                                color: AppColors.text3),
+                            onTap: () {
+                              final fromE = JourneyEndpoint(
+                                  stopId: r.fromId, stopName: r.fromName);
+                              final toE = JourneyEndpoint(
+                                  stopId: r.toId, stopName: r.toName);
+                              context.push('/journey',
+                                  extra: {'from': fromE, 'to': toE});
+                            },
+                          ),
+                        )),
+                  ],
+                ),
+              );
+            },
+            loading: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
+            error: (_, __) =>
+                const SliverToBoxAdapter(child: SizedBox.shrink()),
+          ),
+          // ─── Fermate vicine ───────────────────────────────────────────────
           nearbyAsync.when(
             data: (stops) {
-              if (stops.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
-              return _SectionSliver(title: 'Vicino a te', stops: stops.take(5).toList());
+              if (stops.isEmpty)
+                return const SliverToBoxAdapter(child: SizedBox.shrink());
+              return _SectionSliver(
+                  title: 'VICINO A TE', stops: stops.take(5).toList());
             },
             loading: () => SliverToBoxAdapter(
               child: Column(
                 children: List.generate(3, (_) => const StopCardSkeleton()),
               ),
             ),
-            error: (_, __) => const SliverToBoxAdapter(child: SizedBox.shrink()),
+            error: (_, __) =>
+                const SliverToBoxAdapter(child: SizedBox.shrink()),
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 80)),
         ],
@@ -201,25 +344,36 @@ class _QuickActionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => context.go(action.route),
+      onTap: () => context.push(action.route),
       child: Container(
         decoration: BoxDecoration(
-          color: action.color.withAlpha(20),
+          color: AppColors.surface1,
           borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.divider, width: 0.8),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(action.icon, color: action.color, size: 26),
-            const SizedBox(height: 4),
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: action.color.withAlpha(22),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(action.icon, color: action.color, size: 22),
+            ),
+            const SizedBox(height: 6),
             Text(
               action.label,
-              style: TextStyle(
-                color: action.color,
+              style: const TextStyle(
+                color: AppColors.text1,
                 fontSize: 11,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w600,
               ),
               textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -240,18 +394,21 @@ class _SectionSliver extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
             child: Text(
               title,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleSmall
-                  ?.copyWith(fontWeight: FontWeight.w700, color: AppColors.text2),
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: AppColors.text3,
+                letterSpacing: 0.8,
+              ),
             ),
           ),
           ...stops.map((s) => StopCard(
                 stop: s,
-                onTap: () => context.push('/stops/${s.stopId}'),
+                onTap: () =>
+                    context.push('/stops/${Uri.encodeComponent(s.stopId)}'),
               )),
         ],
       ),

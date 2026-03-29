@@ -6,6 +6,7 @@ class RouteChip extends StatelessWidget {
   final String? color;
   final String? textColor;
   final double fontSize;
+  final bool small;
 
   const RouteChip({
     super.key,
@@ -13,6 +14,7 @@ class RouteChip extends StatelessWidget {
     this.color,
     this.textColor,
     this.fontSize = 13,
+    this.small = false,
   });
 
   Color _parseColor(String? hex, Color fallback) {
@@ -30,9 +32,13 @@ class RouteChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final bgColor = _parseColor(color, AppColors.brand);
     final fgColor = _parseColor(textColor, Colors.white);
+    final effectiveFontSize = small ? 10.0 : fontSize;
+    final padding = small
+        ? const EdgeInsets.symmetric(horizontal: 5, vertical: 2)
+        : const EdgeInsets.symmetric(horizontal: 8, vertical: 3);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: padding,
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(6),
@@ -42,7 +48,7 @@ class RouteChip extends StatelessWidget {
         style: TextStyle(
           color: fgColor,
           fontWeight: FontWeight.w800,
-          fontSize: fontSize,
+          fontSize: effectiveFontSize,
           height: 1.2,
         ),
       ),

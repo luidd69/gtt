@@ -42,7 +42,8 @@ class ServiceStatus {
         alerts: (json['alerts'] as List? ?? [])
             .map((a) => ServiceAlert.fromJson(a as Map<String, dynamic>))
             .toList(),
-        gtfsLoaded: json['available'] as bool? ?? json['gtfsLoaded'] as bool? ?? false,
+        gtfsLoaded:
+            json['available'] as bool? ?? json['gtfsLoaded'] as bool? ?? false,
         gtfsLastUpdated: json['gtfsLastUpdated'],
       );
 }
@@ -59,7 +60,52 @@ class ServiceApi {
   Future<List<Vehicle>> getVehicles() async {
     final res = await _dio.get('/service/vehicles');
     final list = (res.data['vehicles'] ?? res.data) as List;
-    return list.map((e) => Vehicle.fromJson(e as Map<String, dynamic>)).toList();
+    return list
+        .map((e) => Vehicle.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<GtfsInfo> getGtfsInfo() async {
+    final res = await _dio.get('/service/gtfs-info');
+    return GtfsInfo.fromJson((res.data as Map).cast<String, dynamic>());
+  }
+
+  Future<Map<String, dynamic>> getMetroInfo() async {
+    final res = await _dio.get('/service/metro');
+    return (res.data as Map).cast<String, dynamic>();
+  }
+}
+
+class GtfsInfo {
+  final bool loaded;
+  final String? loadedAt;
+  final int? stops;
+  final int? routes;
+  final int? trips;
+  final int? stopTimes;
+  final bool? realtimeEnabled;
+
+  const GtfsInfo({
+    required this.loaded,
+    this.loadedAt,
+    this.stops,
+    this.routes,
+    this.trips,
+    this.stopTimes,
+    this.realtimeEnabled,
+  });
+
+  factory GtfsInfo.fromJson(Map<String, dynamic> json) {
+    final stats = (json['stats'] as Map?)?.cast<String, dynamic>() ?? const {};
+    return GtfsInfo(
+      loaded: json['loaded'] as bool? ?? false,
+      loadedAt: json['loadedAt']?.toString(),
+      stops: (stats['stops'] as num?)?.toInt(),
+      routes: (stats['routes'] as num?)?.toInt(),
+      trips: (stats['trips'] as num?)?.toInt(),
+      stopTimes: (stats['stopTimes'] as num?)?.toInt(),
+      realtimeEnabled: json['realtimeEnabled'] as bool?,
+    );
   }
 }
 

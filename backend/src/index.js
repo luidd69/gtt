@@ -25,6 +25,7 @@ const serviceRouter = require('./routes/service');
 const journeyRouter = require('./routes/journey');
 const tripsRouter = require('./routes/trips');
 const remindersRouter = require('./routes/reminders');
+const remindersFcmRouter = require('./routes/reminders-fcm');
 
 const PORT = parseInt(process.env.PORT) || 3001;
 const app = express();
@@ -69,6 +70,7 @@ app.use('/api/arrivals', arrivalsRouter);
 app.use('/api/service', serviceRouter);
 app.use('/api/journey', journeyRouter);
 app.use('/api/trips', tripsRouter);
+app.use('/api/reminders/fcm', remindersFcmRouter);
 app.use('/api/reminders', remindersRouter);
 
 // Health check

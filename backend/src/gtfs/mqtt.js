@@ -14,6 +14,10 @@ const TOPIC       = '#';
 const STALE_MS    = 90_000;   // veicoli non aggiornati da > 90s → scartati
 const RECONNECT_S = 10;       // secondi tra tentativi di riconnessione
 
+// Cache: cacheKey (`nextStopId:routeShortName:directionId`) → gtfsTripId
+// Evita N query per ogni request /vehicles
+const gtfsIdCache = new Map();
+
 // Store principale: vehicleKey (`routeShortName:vehicleId`) → vehicle object
 const store = new Map();
 
@@ -110,6 +114,8 @@ function pruneStale() {
 /**
  * Restituisce tutte le posizioni fresche (< 90s), arricchite con
  * i dati di linea dal DB (colore, tipo, nome lungo).
+ * Aggiunge anche `gtfsTripId` — il trip_id GTFS statico corrispondente
+ * al veicolo, cercato per nextStopId + routeShortName + directionId.
  *
  * @param {import('better-sqlite3').Database} db
  * @returns {object[]}
@@ -117,6 +123,10 @@ function pruneStale() {
 function getVehicles(db) {
   pruneStale();
   if (!store.size) return [];
+
+  // Calcola secondi dall'inizio del giorno (per matching orario)
+  const now = new Date();
+  const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
 
   // Carica info route in blocco per evitare N query
   const routeCache = {};
@@ -128,12 +138,52 @@ function getVehicles(db) {
     return (routeCache[shortName] = r || null);
   };
 
+  // Prepara la query per il mapping mqttTripId → gtfsTripId
+  // Cerca la corsa GTFS che passa per nextStopId sulla stessa linea e direzione,
+  // con orario di partenza più vicino all'orario corrente.
+  const gtfsLookup = db.prepare(`
+    SELECT t.trip_id
+    FROM trips t
+    JOIN routes r  ON r.route_id  = t.route_id
+    JOIN stop_times st ON st.trip_id = t.trip_id AND st.stop_id = ?
+    WHERE r.route_short_name = ?
+      AND (? IS NULL OR CAST(t.direction_id AS INTEGER) = CAST(? AS INTEGER))
+    ORDER BY ABS(
+      CAST(SUBSTR(st.departure_time, 1, 2) AS INTEGER) * 3600 +
+      CAST(SUBSTR(st.departure_time, 4, 2) AS INTEGER) * 60  +
+      CAST(SUBSTR(st.departure_time, 7, 2) AS INTEGER) - ?
+    )
+    LIMIT 1
+  `);
+
   return [...store.values()].map(v => {
     const r = getRoute(v.routeShortName);
+
+    // Mapping mqttTripId → gtfsTripId via nextStopId
+    let gtfsTripId = null;
+    if (v.nextStopId && v.routeShortName) {
+      const cacheKey = `${v.nextStopId}:${v.routeShortName}:${v.directionId}`;
+      gtfsTripId = gtfsIdCache.get(cacheKey) ?? null;
+      if (gtfsTripId == null) {
+        try {
+          const row = gtfsLookup.get(
+            v.nextStopId,
+            v.routeShortName,
+            v.directionId,
+            v.directionId,
+            nowSec
+          );
+          gtfsTripId = row?.trip_id ?? null;
+          if (gtfsTripId) gtfsIdCache.set(cacheKey, gtfsTripId);
+        } catch (_) { /* DB non pronto */ }
+      }
+    }
+
     return {
       id:             v.id,
       vehicleId:      v.vehicleId,
       tripId:         v.tripId,
+      gtfsTripId,
       routeId:        r?.route_id        || null,
       routeShortName: r?.route_short_name || v.routeShortName,
       routeLongName:  r?.route_long_name  || null,

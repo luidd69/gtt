@@ -262,6 +262,7 @@ query OtpPlan(
         duration
         realTime
         distance
+        legGeometry { points length }
         intermediateStops { name gtfsId lat lon }
         from { name lat lon stop { gtfsId name } }
         to   { name lat lon stop { gtfsId name } }
@@ -376,6 +377,7 @@ async function getOtpPlan(fromLat, fromLon, toLat, toLon, options = {}) {
             lon:    s.lon ?? null,
           })) ?? [],
           tripId: stripOtpPrefix(leg.trip?.gtfsId),
+          encodedPolyline: leg.legGeometry?.points ?? null,
         };
       });
 

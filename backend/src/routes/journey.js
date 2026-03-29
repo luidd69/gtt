@@ -350,23 +350,34 @@ router.get('/trip/:tripId', async (req, res) => {
   const { tripId } = req.params;
   const { fromStop, toStop } = req.query;
 
+  // Normalizza: il MQTT invia ID numerici (es. "27956054"), GTFS ha "27956054U".
+  // Se il lookup diretto fallisce, prova anche con suffisso "U".
+  const candidateIds = [tripId];
+  if (/^\d+$/.test(tripId)) candidateIds.push(`${tripId}U`);
+  if (tripId.endsWith('U')) candidateIds.push(tripId.slice(0, -1));
+
   // Cache con TTL arrivi (30s) — contiene dati realtime
-  const cacheKey = `trip:${tripId}:${fromStop || ''}:${toStop || ''}`;
+  const cacheKey = `trip:${candidateIds[0]}:${fromStop || ''}:${toStop || ''}`;
 
   try {
     const result = await withCache('arrivals', cacheKey, async () => {
       const db = getDb();
 
-      // Dati corsa + linea
-      const tripRow = db.prepare(`
-        SELECT
-          t.trip_id, t.trip_headsign, t.direction_id,
-          r.route_id, r.route_short_name, r.route_long_name,
-          r.route_type, r.route_color, r.route_text_color
-        FROM trips t
-        JOIN routes r ON r.route_id = t.route_id
-        WHERE t.trip_id = ?
-      `).get(tripId);
+      // Dati corsa + linea — prova tutti i candidati
+      let tripRow = null;
+      let resolvedTripId = tripId;
+      for (const id of candidateIds) {
+        tripRow = db.prepare(`
+          SELECT
+            t.trip_id, t.trip_headsign, t.direction_id,
+            r.route_id, r.route_short_name, r.route_long_name,
+            r.route_type, r.route_color, r.route_text_color
+          FROM trips t
+          JOIN routes r ON r.route_id = t.route_id
+          WHERE t.trip_id = ?
+        `).get(id);
+        if (tripRow) { resolvedTripId = id; break; }
+      }
 
       if (!tripRow) return { _error: 'Corsa non trovata', _status: 404 };
 
@@ -386,17 +397,17 @@ router.get('/trip/:tripId', async (req, res) => {
         JOIN stops s ON s.stop_id = st.stop_id
         WHERE st.trip_id = ?
         ORDER BY st.stop_sequence
-      `).all(tripId);
+      `).all(resolvedTripId);
 
       const nowSec = nowInSeconds();
 
       // Fetch GTFS-RT in parallelo: ritardi + posizione veicolo
       const [realtimeDelays, vehicleData] = await Promise.all([
-        isRealtimeEnabled() ? getRealtimeDelays([tripId]) : Promise.resolve({}),
-        isRealtimeEnabled() ? getVehiclePosition(tripId)  : Promise.resolve({ available: false }),
+        isRealtimeEnabled() ? getRealtimeDelays([resolvedTripId]) : Promise.resolve({}),
+        isRealtimeEnabled() ? getVehiclePosition(resolvedTripId)  : Promise.resolve({ available: false }),
       ]);
 
-      const rtInfo        = realtimeDelays[tripId] || null;
+      const rtInfo        = realtimeDelays[resolvedTripId] || null;
       const delaySeconds  = rtInfo?.delay ?? 0;
 
       // La fermata corrente rilevata dal vehicle position feed

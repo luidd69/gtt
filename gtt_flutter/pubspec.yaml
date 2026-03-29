@@ -10,6 +10,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
   # HTTP
   dio: ^5.4.0
@@ -31,15 +33,20 @@ dependencies:
   # MQTT (veicoli live)
   mqtt_client: ^10.0.0
 
+  # Firebase / push
+  firebase_core: ^3.13.1
+  firebase_messaging: ^15.2.6
+
   # Notifiche locali
   flutter_local_notifications: ^17.0.0
+  timezone: ^0.9.0
 
   # Geolocalizzazione
   geolocator: ^12.0.0
   geocoding: ^3.0.0
 
   # UI / util
-  intl: ^0.19.0
+  intl: ^0.20.2
   flutter_animate: ^4.5.0
   material_symbols_icons: ^4.2.0
   cached_network_image: ^3.3.0

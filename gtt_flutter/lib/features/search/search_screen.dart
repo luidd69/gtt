@@ -1,13 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/api/lines_api.dart';
+import '../../core/models/route_line.dart';
 import '../../core/providers/favorites_provider.dart';
 import '../../core/providers/location_provider.dart';
 import '../../widgets/bottom_nav.dart';
+import '../../widgets/route_chip.dart';
 import '../../widgets/stop_card.dart';
 import '../../widgets/loading_shimmer.dart';
 import '../../core/theme/colors.dart';
 import 'search_provider.dart';
+
+// Provider per ricerca linee con filtro tipo
+final _linesSearchProvider =
+    FutureProvider.autoDispose.family<List<RouteLine>, ({String q, int? type})>(
+  (ref, args) => ref.watch(linesApiProvider).getAll(type: args.type).then(
+        (lines) => lines
+            .where((l) =>
+                l.shortName.toLowerCase().contains(args.q.toLowerCase()) ||
+                l.longName.toLowerCase().contains(args.q.toLowerCase()))
+            .toList(),
+      ),
+);
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -16,16 +31,19 @@ class SearchScreen extends ConsumerStatefulWidget {
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
 }
 
-class _SearchScreenState extends ConsumerState<SearchScreen> {
+class _SearchScreenState extends ConsumerState<SearchScreen>
+    with SingleTickerProviderStateMixin {
   final _ctrl = TextEditingController();
   final _focus = FocusNode();
+  late final TabController _tabCtrl;
+  int? _lineTypeFilter; // null=Tutte, 1=Metro, 0=Tram, 3=Bus
 
   @override
   void initState() {
     super.initState();
+    _tabCtrl = TabController(length: 2, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focus.requestFocus();
-      // Fetch location for nearby
       ref.read(locationProvider.notifier).fetch();
     });
   }
@@ -34,12 +52,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void dispose() {
     _ctrl.dispose();
     _focus.dispose();
+    _tabCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final searchState = ref.watch(searchProvider).valueOrNull ?? const SearchState();
+    final searchState =
+        ref.watch(searchProvider).valueOrNull ?? const SearchState();
     final locState = ref.watch(locationProvider).valueOrNull;
 
     return Scaffold(
@@ -61,6 +81,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         onPressed: () {
                           _ctrl.clear();
                           ref.read(searchProvider.notifier).onQueryChanged('');
+                          setState(() {});
                         },
                       )
                     : null,
@@ -75,36 +96,189 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/home'),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go('/home'),
+        ),
+        bottom: TabBar(
+          controller: _tabCtrl,
+          tabs: const [
+            Tab(icon: Icon(Icons.directions_bus_outlined, size: 18), text: 'Fermate'),
+            Tab(icon: Icon(Icons.alt_route_outlined, size: 18), text: 'Linee'),
+          ],
         ),
       ),
-      body: _buildBody(context, searchState, locState),
+      body: TabBarView(
+        controller: _tabCtrl,
+        children: [
+          // Tab Fermate
+          _buildStopsTab(context, searchState, locState),
+          // Tab Linee
+          _buildLinesTab(context, searchState.query),
+        ],
+      ),
       bottomNavigationBar: const BottomNav(currentIndex: 1),
     );
   }
 
-  Widget _buildBody(BuildContext context, SearchState searchState, dynamic locState) {
+  Widget _buildStopsTab(
+      BuildContext context, SearchState searchState, dynamic locState) {
     if (searchState.loading) {
       return ListView(
         children: List.generate(5, (_) => const StopCardSkeleton()),
       );
     }
-
     if (searchState.error != null) {
       return _ErrorView(message: searchState.error!);
     }
-
     if (searchState.query.length >= 2) {
       if (searchState.results.isEmpty) {
         return const _EmptyView(message: 'Nessuna fermata trovata');
       }
       return _ResultsList(results: searchState.results);
     }
-
-    // Empty query — mostra nearby o recenti
     return _IdleView(locState: locState);
   }
+
+  Widget _buildLinesTab(BuildContext context, String query) {
+    return Column(
+      children: [
+        // Filtro tipo
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _TypeChip(label: 'Tutte', selected: _lineTypeFilter == null,
+                    onTap: () => setState(() => _lineTypeFilter = null)),
+                const SizedBox(width: 6),
+                _TypeChip(label: '🚇 Metro', selected: _lineTypeFilter == 1,
+                    onTap: () => setState(() => _lineTypeFilter = 1)),
+                const SizedBox(width: 6),
+                _TypeChip(label: '🚃 Tram', selected: _lineTypeFilter == 0,
+                    onTap: () => setState(() => _lineTypeFilter = 0)),
+                const SizedBox(width: 6),
+                _TypeChip(label: '🚌 Bus', selected: _lineTypeFilter == 3,
+                    onTap: () => setState(() => _lineTypeFilter = 3)),
+              ],
+            ),
+          ),
+        ),
+        Expanded(
+          child: query.length < 2
+              ? _LinesAllList(typeFilter: _lineTypeFilter)
+              : _LinesSearchResults(q: query, typeFilter: _lineTypeFilter),
+        ),
+      ],
+    );
+  }
 }
+
+// ----- Lines Tab Widgets -----
+
+class _TypeChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _TypeChip({required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.brand : AppColors.brand.withAlpha(20),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected ? Colors.white : AppColors.brand,
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+            ),
+          ),
+        ),
+      );
+}
+
+class _LinesAllList extends ConsumerWidget {
+  final int? typeFilter;
+  const _LinesAllList({this.typeFilter});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final linesAsync = ref.watch(
+      FutureProvider.autoDispose<List<RouteLine>>(
+        (ref) => ref.watch(linesApiProvider).getAll(type: typeFilter),
+      ),
+    );
+    return linesAsync.when(
+      data: (lines) => _LineListView(lines: lines),
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(child: Text('Errore: $e')),
+    );
+  }
+}
+
+class _LinesSearchResults extends ConsumerWidget {
+  final String q;
+  final int? typeFilter;
+  const _LinesSearchResults({required this.q, this.typeFilter});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final linesAsync =
+        ref.watch(_linesSearchProvider((q: q, type: typeFilter)));
+    return linesAsync.when(
+      data: (lines) => lines.isEmpty
+          ? const _EmptyView(message: 'Nessuna linea trovata')
+          : _LineListView(lines: lines),
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(child: Text('Errore: $e')),
+    );
+  }
+}
+
+class _LineListView extends StatelessWidget {
+  final List<RouteLine> lines;
+  const _LineListView({required this.lines});
+
+  @override
+  Widget build(BuildContext context) => ListView.builder(
+        itemCount: lines.length,
+        itemBuilder: (_, i) {
+          final l = lines[i];
+          return ListTile(
+            leading: RouteChip(
+              shortName: l.shortName,
+              color: l.color,
+              textColor: l.textColor,
+            ),
+            title: Text(l.longName,
+                maxLines: 1, overflow: TextOverflow.ellipsis),
+            subtitle: Text(_typeLabel(l.routeType)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () =>
+                context.push('/lines/${Uri.encodeComponent(l.routeId)}'),
+          );
+        },
+      );
+
+  String _typeLabel(int type) {
+    switch (type) {
+      case 1:
+        return 'Metro';
+      case 0:
+        return 'Tram';
+      default:
+        return 'Bus';
+    }
+  }
+}
+
+// ----- Stops Tab Widgets -----
 
 class _ResultsList extends ConsumerWidget {
   final List results;
@@ -117,15 +291,18 @@ class _ResultsList extends ConsumerWidget {
       itemCount: results.length,
       itemBuilder: (_, i) {
         final stop = results[i];
-        final isFav = favAsync.valueOrNull?.favorites.any((f) => f.stopId == stop.stopId) ?? false;
+        final isFav = favAsync.valueOrNull?.favorites
+                .any((f) => f.stopId == stop.stopId) ??
+            false;
         return StopCard(
           stop: stop,
           isFavorite: isFav,
           onTap: () {
             ref.read(favoritesProvider.notifier).addRecent(stop);
-            context.push('/stops/${stop.stopId}');
+            context.push('/stops/${Uri.encodeComponent(stop.stopId)}');
           },
-          onFavoriteTap: () => ref.read(favoritesProvider.notifier).toggle(stop),
+          onFavoriteTap: () =>
+              ref.read(favoritesProvider.notifier).toggle(stop),
         );
       },
     );
@@ -138,15 +315,15 @@ class _IdleView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final recentStops = ref.watch(favoritesProvider).valueOrNull?.recentStops ?? [];
+    final recentStops =
+        ref.watch(favoritesProvider).valueOrNull?.recentStops ?? [];
 
     final coords = (locState?.hasLocation == true)
         ? (locState!.lat! as double, locState!.lon! as double)
         : null;
 
-    final nearbyAsync = coords != null
-        ? ref.watch(nearbyStopsSearchProvider(coords))
-        : null;
+    final nearbyAsync =
+        coords != null ? ref.watch(nearbyStopsSearchProvider(coords)) : null;
 
     return ListView(
       children: [
@@ -154,7 +331,8 @@ class _IdleView extends ConsumerWidget {
           _SectionHeader('Recenti'),
           ...recentStops.take(5).map((s) => StopCard(
                 stop: s,
-                onTap: () => context.push('/stops/${s.stopId}'),
+                onTap: () =>
+                    context.push('/stops/${Uri.encodeComponent(s.stopId)}'),
               )),
         ],
         if (nearbyAsync != null) ...[
@@ -163,7 +341,11 @@ class _IdleView extends ConsumerWidget {
             data: (stops) => Column(
               children: stops
                   .take(5)
-                  .map((s) => StopCard(stop: s, onTap: () => context.push('/stops/${s.stopId}')))
+                  .map((s) => StopCard(
+                        stop: s,
+                        onTap: () => context
+                            .push('/stops/${Uri.encodeComponent(s.stopId)}'),
+                      ))
                   .toList(),
             ),
             loading: () => Column(
@@ -222,7 +404,8 @@ class _ErrorView extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.error_outline, size: 48, color: AppColors.delayHeavy),
+              const Icon(Icons.error_outline,
+                  size: 48, color: AppColors.delayHeavy),
               const SizedBox(height: 12),
               Text(message,
                   textAlign: TextAlign.center,
